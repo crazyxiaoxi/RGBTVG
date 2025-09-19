@@ -50,6 +50,8 @@ Links:
 
 
 ## TO XJW
+* copy dataset and pretrain model
+* python data_pre/clip_peft_0111.py
 * folder: models
 * folder: script_eval
 * folder: script_train
