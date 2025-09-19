@@ -10,7 +10,7 @@ DIST_CMD=(env CUDA_VISIBLE_DEVICES=$CUDADEVICES python -m torch.distributed.laun
 
 DATA_ROOT="../dataset_and_pretrain_model/datasets/VG/image_data"  
 SPLIT_ROOT="../dataset_and_pretrain_model/datasets/VG/ref_data_shuffled"  
-CLIP_MODEL="../dataset_and_pretrain_model/pretrain_model/pretrained_weights/CLIP/clip_b_ml_cascade_maskrcnn_model_224.pth"  
+CLIP_MODEL="../dataset_and_pretrain_model/pretrain_model/pretrained_weights/CLIP/clip_b_ml_cascade_maskrcnn_model_224_peft0111_nolora.pth" 
 OUTPUT_DIR_WARMUP="./output_training/HiVG_${IMGSIZE}_${MODALITY}/$DATA_SET/rgbt_finetuning_base_clip_weight/output_v100"
 OUTPUT_DIR_STAGE1="./output_training/HiVG_${IMGSIZE}_${MODALITY}_{$MODALITY}/$DATA_SET/rgbt_finetuning_base_clip_weight/output_v101"
 OUTPUT_DIR_STAGE2="./output_training/HiVG_${IMGSIZE}_${MODALITY}_{$MODALITY}/$DATA_SET/rgbt_finetuning_base_clip_weight/output_v102"
