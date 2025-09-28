@@ -22,6 +22,7 @@ def get_args_parser():
     parser = argparse.ArgumentParser('HiVG Training Args', add_help=False)
     parser.add_argument('--modality', default='rgbt', type=str)
     parser.add_argument('--sup_type', default='full', type=str)
+    parser.add_argument('--old_dataloader', default=False, type=bool)
     parser.add_argument('--lr', default=1e-4, type=float)
     parser.add_argument('--batch_size', default=8, type=int)
     parser.add_argument('--weight_decay', default=1e-4, type=float)

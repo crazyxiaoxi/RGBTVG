@@ -29,15 +29,20 @@ def train_one_epoch(args, model: torch.nn.Module, data_loader: Iterable,
     metric_logger.add_meter('lr', utils.SmoothedValue(window_size=1, fmt='{value:.6f}'))
     header = 'Epoch: [{}]'.format(epoch)
     print_freq = 10
-
+    training_states={
+        'epoch':epoch,
+    }
     for batch in metric_logger.log_every(data_loader, print_freq, header):
-
-        img_data, text_data, target, obj_mask = batch
-
+        if args.old_dataloader:
+            img_data, text_data, target = batch
+            text_data = text_data.to(device)
+        else: 
+            img_data, text_data, target, obj_mask = batch
+        extra={'training_states':training_states}
         # copy to GPU
         img_data = img_data.to(device)
         target = target.to(device)
-        obj_mask = obj_mask.to(device)
+        # obj_mask = obj_mask.to(device)
         # model forward core-computer
         if 'MMVG' in args.model_name:
             output, text_eos, img_cls, visu_sim, seg_mask = model(img_data, text_data)
@@ -45,31 +50,31 @@ def train_one_epoch(args, model: torch.nn.Module, data_loader: Iterable,
             loss_dict = loss_utils.trans_vg_loss(args, output, target, obj_mask, text_eos, img_cls, visu_sim, seg_mask)
             losses = sum(loss_dict[k] for k in loss_dict.keys())
 
-            # reduce losses over all GPUs for logging purposes
-            loss_dict_reduced = utils.reduce_dict(loss_dict)
-            loss_dict_reduced_unscaled = {k: v for k, v in loss_dict_reduced.items()}
-            losses_reduced_unscaled = sum(loss_dict_reduced_unscaled.values())
-            loss_value = losses_reduced_unscaled.item()
         elif args.model_name =='HiVG':
             output, text_eos, img_cls, visu_sim, seg_mask = model(img_data, text_data)
             # The `loss_dict` is a dictionary that contains `l1_smooth` and `giou`.
             loss_dict = loss_utils.trans_vg_loss(args, output, target, obj_mask, text_eos, img_cls, visu_sim, seg_mask)
             losses = sum(loss_dict[k] for k in loss_dict.keys())
 
-            # reduce losses over all GPUs for logging purposes
-            loss_dict_reduced = utils.reduce_dict(loss_dict)
-            loss_dict_reduced_unscaled = {k: v for k, v in loss_dict_reduced.items()}
-            losses_reduced_unscaled = sum(loss_dict_reduced_unscaled.values())
-            loss_value = losses_reduced_unscaled.item()
-        elif args.model_name =='CLIP_VG':
+        #elif args.model_name =='CLIP_VG' or args.model_name =='TransVG':
+        elif args.model_name in ['CLIP_VG', 'TransVG', 'MMCA']:
             output = model(img_data, text_data)
             loss_dict = loss_utils.trans_vg_loss_from_clipvg(output, target)
             losses = sum(loss_dict[k] for k in loss_dict.keys())
+
+        elif args.model_name == 'QRNet':
+            output = model(img_data, text_data, extra)
+            if type(output)==dict:
+                loss_dict = loss_utils.trans_vg_with_pruning_loss(output, target)
+            else:
+                loss_dict = loss_utils.trans_vg_loss(output, target)
+            losses = sum(loss_dict[k] for k in loss_dict.keys())
             # reduce losses over all GPUs for logging purposes
-            loss_dict_reduced = utils.reduce_dict(loss_dict)
-            loss_dict_reduced_unscaled = {k: v for k, v in loss_dict_reduced.items()}
-            losses_reduced_unscaled = sum(loss_dict_reduced_unscaled.values())
-            loss_value = losses_reduced_unscaled.item()
+
+        loss_dict_reduced = utils.reduce_dict(loss_dict)
+        loss_dict_reduced_unscaled = {k: v for k, v in loss_dict_reduced.items()}
+        losses_reduced_unscaled = sum(loss_dict_reduced_unscaled.values())
+        loss_value = losses_reduced_unscaled.item()
 
         if not math.isfinite(loss_value):
             print("Loss is {}, stopping training".format(loss_value))
@@ -98,43 +103,57 @@ def validate(args, model: torch.nn.Module, data_loader: Iterable, device: torch.
     header = 'Eval:'
 
     for batch in metric_logger.log_every(data_loader, 10, header):
-        img_data, text_data, target, tgt_mask = batch
+        if args.old_dataloader:
+            img_data, text_data, target = batch
+            text_data = text_data.to(device)
+        else: 
+            img_data, text_data, target, tgt_mask = batch
+            tgt_mask = tgt_mask.to(device)
         batch_size = img_data.tensors.size(0)
         # copy to GPU
         img_data = img_data.to(device)
         target = target.to(device)
-        tgt_mask = tgt_mask.to(device)
-        if 'MMVG' in args.model_name:
 
+        if 'MMVG' in args.model_name:
             pred_boxes, _, _, _, seg_mask = model(img_data=img_data, text_data=text_data)
             miou, accu, mask_iou_list = eval_utils.trans_vg_eval_val(args, pred_boxes, target, seg_mask, tgt_mask)
-            
-            metric_logger.update_v2('miou', torch.mean(miou), batch_size)
-            metric_logger.update_v2('accu', accu, batch_size)
             metric_logger.update_v2('mask seg miou', torch.mean(mask_iou_list), batch_size)
+        
         elif args.model_name == 'HiVG':
             pred_boxes, _, _, _, seg_mask = model(img_data=img_data, text_data=text_data)
             miou, accu, mask_iou_list = eval_utils.trans_vg_eval_val(args, pred_boxes, target, seg_mask, tgt_mask)
-
-            metric_logger.update_v2('miou', torch.mean(miou), batch_size)
-            metric_logger.update_v2('accu', accu, batch_size)
             metric_logger.update_v2('mask seg miou', torch.mean(mask_iou_list), batch_size)
-        elif args.model_name == 'CLIP_VG':
+        
+        #elif args.model_name == 'CLIP_VG' or  args.model_name == 'TransVG':
+        elif args.model_name in ['CLIP_VG', 'TransVG', 'MMCA']: 
             pred_boxes = model(img_data, text_data)
             miou, accu = eval_utils.trans_vg_eval_val_from_clipvg(pred_boxes, target)
-            metric_logger.update_v2('miou', torch.mean(miou), batch_size)
-            metric_logger.update_v2('accu', accu, batch_size)
+
+        elif args.model_name == 'QRNet':
+            pred_boxes = model(img_data, text_data, {})
+            miou, accu = eval_utils.trans_vg_eval_val_from_clipvg(pred_boxes, target)
+        
+        metric_logger.update_v2('miou', torch.mean(miou), batch_size)
+        metric_logger.update_v2('accu', accu, batch_size)
 
     # gather the stats from all processes
     metric_logger.synchronize_between_processes()
     stats = {k: meter.global_avg for k, meter in metric_logger.meters.items()}
     return stats
 
+class UnNormalize(object):
+    def __init__(self, mean, std):
+        self.mean = mean
+        self.std = std
+
+    def __call__(self, tensor):
+        for t, m, s in zip(tensor, self.mean, self.std):
+            t.mul_(s).add_(m)
 
 @torch.no_grad()
 def evaluate(args, model: torch.nn.Module, data_loader: Iterable, device: torch.device):
     model.eval()
-
+    unorm = UnNormalize(mean=(0.485, 0.456, 0.406), std=(0.229, 0.224, 0.225))
     pred_box_list = []
     gt_box_list = []
     text_list = []
@@ -143,40 +162,39 @@ def evaluate(args, model: torch.nn.Module, data_loader: Iterable, device: torch.
     gt_mask_list = []
 
     for _, batch in enumerate(tqdm(data_loader)):
-        img_data, text_data, target, tgt_mask = batch
+        if args.old_dataloader:
+            img_data, text_data, target = batch
+            text_data = text_data.to(device)
+        else:
+            img_data, text_data, target, tgt_mask = batch
+            tgt_mask = tgt_mask.to(device)
+
         batch_size = img_data.tensors.size(0)
         # copy to GPU
         img_data = img_data.to(device)
         target = target.to(device)
-        tgt_mask = tgt_mask.to(device)
         if 'MMVG' in args.model_name:
-
             output, _, _, token_sim, seg_mask = model(img_data, text_data)
-            
-
-            pred_box_list.append(output.cpu())
-            gt_box_list.append(target.cpu())
-
             pred_mask_list.append(seg_mask.cpu())
             gt_mask_list.append(tgt_mask.cpu())
+
         elif args.model_name == 'HiVG':
-
             output, _, _, token_sim, seg_mask = model(img_data, text_data)
-            
-
-            pred_box_list.append(output.cpu())
-            gt_box_list.append(target.cpu())
-
             pred_mask_list.append(seg_mask.cpu())
             gt_mask_list.append(tgt_mask.cpu())
-        elif args.model_name == 'CLIP_VG':
+
+        elif args.model_name in ['CLIP_VG', 'TransVG', 'MMCA']:
             output = model(img_data, text_data)
+        
+        elif args.model_name == 'QRNet':
+            output = model(img_data, text_data,extra={})
 
-            pred_box_list.append(output.cpu())
-            gt_box_list.append(target.cpu())
+        pred_box_list.append(output.cpu())
+        gt_box_list.append(target.cpu())
 
-        for text_i in text_data:
-            text_list.append(text_i)
+        if not args.old_dataloader:
+            for text_i in text_data:
+                text_list.append(text_i)
         # visualization(args, img_data,text_data,output,target,ori_size=(640,512))
     pred_boxes = torch.cat(pred_box_list, dim=0)
     gt_boxes = torch.cat(gt_box_list, dim=0)       
@@ -191,6 +209,7 @@ def evaluate(args, model: torch.nn.Module, data_loader: Iterable, device: torch.
             # It is work only used for referring image segmentation task and enable use args.use_seg_mask
             acc_mask_iou = torch.sum(mask_iou_list, dim=0)
             mask_result_tensor = torch.tensor([acc_mask_iou, total_num]).to(device)
+
     elif args.model_name == 'HiVG':
         gt_masks = torch.cat(gt_mask_list, dim=0)
         pred_masks = torch.cat(pred_mask_list, dim=0)
@@ -200,7 +219,7 @@ def evaluate(args, model: torch.nn.Module, data_loader: Iterable, device: torch.
             acc_mask_iou = torch.sum(mask_iou_list, dim=0)
             mask_result_tensor = torch.tensor([acc_mask_iou, total_num]).to(device)
 
-    elif args.model_name == 'CLIP_VG':
+    elif args.model_name in ['CLIP_VG', 'TransVG', 'QRNet']:
         accu_num = eval_utils.trans_vg_eval_test_from_clipvg(pred_boxes, gt_boxes)
 
     result_tensor = torch.tensor([accu_num, total_num]).to(device)
