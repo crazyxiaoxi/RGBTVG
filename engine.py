@@ -17,7 +17,7 @@ import utils.eval_utils as eval_utils
 from utils.box_utils import xywh2xyxy
 from utils.visual_utils import visualization
 import numpy as np
-
+from models.clip import clip
 
 # TODO: 训练核心代码
 def train_one_epoch(args, model: torch.nn.Module, data_loader: Iterable,
@@ -35,7 +35,11 @@ def train_one_epoch(args, model: torch.nn.Module, data_loader: Iterable,
     for batch in metric_logger.log_every(data_loader, print_freq, header):
         if args.old_dataloader:
             img_data, text_data, target = batch
-            text_data = text_data.to(device)
+            #如果有args.model_type 
+            if args.model_type == "CLIP":
+                text_data = clip.tokenize(text_data).to(device)
+            else :
+                text_data = text_data.to(device)
         else: 
             img_data, text_data, target, obj_mask = batch
         extra={'training_states':training_states}
@@ -57,7 +61,7 @@ def train_one_epoch(args, model: torch.nn.Module, data_loader: Iterable,
             losses = sum(loss_dict[k] for k in loss_dict.keys())
 
         #elif args.model_name =='CLIP_VG' or args.model_name =='TransVG':
-        elif args.model_name in ['CLIP_VG', 'TransVG', 'MMCA']:
+        elif args.model_name in ['CLIP_VG', 'TransVG', 'MMCA', 'MDETR']:
             output = model(img_data, text_data)
             loss_dict = loss_utils.trans_vg_loss_from_clipvg(output, target)
             losses = sum(loss_dict[k] for k in loss_dict.keys())
@@ -105,7 +109,10 @@ def validate(args, model: torch.nn.Module, data_loader: Iterable, device: torch.
     for batch in metric_logger.log_every(data_loader, 10, header):
         if args.old_dataloader:
             img_data, text_data, target = batch
-            text_data = text_data.to(device)
+            if args.model_type == "CLIP":
+                text_data = clip.tokenize(text_data).to(device)
+            else :
+                text_data = text_data.to(device)
         else: 
             img_data, text_data, target, tgt_mask = batch
             tgt_mask = tgt_mask.to(device)
@@ -125,7 +132,7 @@ def validate(args, model: torch.nn.Module, data_loader: Iterable, device: torch.
             metric_logger.update_v2('mask seg miou', torch.mean(mask_iou_list), batch_size)
         
         #elif args.model_name == 'CLIP_VG' or  args.model_name == 'TransVG':
-        elif args.model_name in ['CLIP_VG', 'TransVG', 'MMCA']: 
+        elif args.model_name in ['CLIP_VG', 'TransVG', 'MMCA', 'MDETR']: 
             pred_boxes = model(img_data, text_data)
             miou, accu = eval_utils.trans_vg_eval_val_from_clipvg(pred_boxes, target)
 
@@ -164,7 +171,10 @@ def evaluate(args, model: torch.nn.Module, data_loader: Iterable, device: torch.
     for _, batch in enumerate(tqdm(data_loader)):
         if args.old_dataloader:
             img_data, text_data, target = batch
-            text_data = text_data.to(device)
+            if args.model_type == "CLIP":
+                text_data = clip.tokenize(text_data).to(device)
+            else :
+                text_data = text_data.to(device)
         else:
             img_data, text_data, target, tgt_mask = batch
             tgt_mask = tgt_mask.to(device)
@@ -183,7 +193,7 @@ def evaluate(args, model: torch.nn.Module, data_loader: Iterable, device: torch.
             pred_mask_list.append(seg_mask.cpu())
             gt_mask_list.append(tgt_mask.cpu())
 
-        elif args.model_name in ['CLIP_VG', 'TransVG', 'MMCA']:
+        elif args.model_name in ['CLIP_VG', 'TransVG', 'MMCA', 'MDETR']:
             output = model(img_data, text_data)
         
         elif args.model_name == 'QRNet':

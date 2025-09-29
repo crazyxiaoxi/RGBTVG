@@ -24,22 +24,25 @@ def get_args_parser():
     parser.add_argument('--modality', default='rgbt', type=str)
     parser.add_argument('--sup_type', default='full', type=str)
     parser.add_argument('--old_dataloader', default=True, type=bool)
-    parser.add_argument('--model_type', default='ResNet', type=str, choices=('ResNet', 'CLIP'))
     parser.add_argument('--lr', default=1e-4, type=float)
     parser.add_argument('--lr_bert', default=1e-5, type=float)
     parser.add_argument('--lr_visu_cnn', default=1e-5, type=float)
     parser.add_argument('--lr_visu_tra', default=1e-5, type=float)
+    parser.add_argument('--lr_clip', default=1e-5, type=float)
+
+
     parser.add_argument('--batch_size', default=8, type=int)
     parser.add_argument('--weight_decay', default=1e-4, type=float)
     parser.add_argument('--epochs', default=90, type=int)
     parser.add_argument('--lr_power', default=0.9, type=float, help='lr poly power')
     parser.add_argument('--clip_max_norm', default=0.1, type=float,
                         help='gradient clipping max norm')
+
     parser.add_argument('--eval', dest='eval', default=False, action='store_true', help='if evaluation only')
     parser.add_argument('--optimizer', default='adamw', type=str)
     parser.add_argument('--lr_scheduler', default='step', type=str)
     parser.add_argument('--lr_drop', default=60, type=int)
-    
+
     # Augmentation options
     parser.add_argument('--aug_blur', action='store_true',
                         help="If true, use gaussian blur augmentation")
@@ -51,7 +54,9 @@ def get_args_parser():
                         help="If true, use random translate augmentation")
 
     # Model parameters
-    parser.add_argument('--model_name', type=str, default='MMCA',
+    parser.add_argument('--model_name', type=str, default='MDETR',
+                        help="Name of model to be exploited.")
+    parser.add_argument('--model_type', type=str, default='ResNet', choices=('ResNet', 'CLIP'),
                         help="Name of model to be exploited.")
     
     # DETR parameters
@@ -98,8 +103,15 @@ def get_args_parser():
     parser.add_argument('--vl_enc_layers', default=6, type=int,
                         help='Number of encoders in the vision-language transformer')
 
+    # new
+    parser.add_argument('--vl_dec_layers', default=6, type=int,
+                        help='Number of decoders in the vision-language transformer')
+    parser.add_argument('--in_points', default=32, type=int)
+    parser.add_argument('--stages', default=6, type=int)
+
+
     # Dataset parameters
-    parser.add_argument('--data_root', type=str, default='./ln_data/',
+    parser.add_argument('--data_root', type=str, default='/data1/shifengyuan/visual_grounding',
                         help='path to ReferIt splits data folder')
     parser.add_argument('--split_root', type=str, default='data',
                         help='location of pre-parsed dataset info')
@@ -134,7 +146,7 @@ def get_args_parser():
                         help='device to use for training / testing')
     parser.add_argument('--seed', default=13, type=int)
     parser.add_argument('--resume', default='', help='resume from checkpoint')
-    parser.add_argument('--detr_model', default='./saved_models/detr-r50.pth', type=str, help='detr model')
+    parser.add_argument('--detr_model', default=None, type=str, help='detr model')
     parser.add_argument('--bert_model', default='bert-base-uncased', type=str, help='bert model')
     parser.add_argument('--light', dest='light', default=False, action='store_true', help='if use smaller model')
     parser.add_argument('--start_epoch', default=0, type=int, metavar='N',
@@ -145,6 +157,10 @@ def get_args_parser():
     parser.add_argument('--world_size', default=1, type=int,
                         help='number of distributed processes')
     parser.add_argument('--dist_url', default='env://', help='url used to set up distributed training')
+    parser.add_argument('--uniform_grid', default=False, type=bool)
+    parser.add_argument('--uniform_learnable', default=False, type=bool)
+    parser.add_argument('--different_transformer', default=False, type=bool)
+    parser.add_argument('--vl_fusion_enc_layers', default=3, type=int)
     return parser
 
 
@@ -169,21 +185,24 @@ def main(args):
         model_without_ddp = model.module
     n_parameters = sum(p.numel() for p in model.parameters() if p.requires_grad)
     print('number of params:', n_parameters)
+    if args.model_type == "ResNet":
+        visu_cnn_param = [p for n, p in model_without_ddp.named_parameters() if (("visumodel" in n) and ("backbone" in n) and p.requires_grad)]
+        visu_tra_param = [p for n, p in model_without_ddp.named_parameters() if (("visumodel" in n) and ("backbone" not in n) and p.requires_grad)]
+        text_tra_param = [p for n, p in model_without_ddp.named_parameters() if (("textmodel" in n) and p.requires_grad)]
+        rest_param = [p for n, p in model_without_ddp.named_parameters() if (("visumodel" not in n) and ("textmodel" not in n) and p.requires_grad)]
 
-    visu_cnn_param = [p for n, p in model_without_ddp.named_parameters() if (("visumodel" in n) and ("backbone" in n) and p.requires_grad)]
-    visu_tra_param = [p for n, p in model_without_ddp.named_parameters() if (("visumodel" in n) and ("backbone" not in n) and p.requires_grad)]
-    text_tra_param = [p for n, p in model_without_ddp.named_parameters() if (("textmodel" in n) and p.requires_grad)]
-    rest_param = [p for n, p in model_without_ddp.named_parameters() if (("visumodel" not in n) and ("textmodel" not in n) and p.requires_grad)]
+        param_list = [{"params": rest_param},
+                       {"params": visu_cnn_param, "lr": args.lr_visu_cnn},
+                       {"params": visu_tra_param, "lr": args.lr_visu_tra},
+                       {"params": text_tra_param, "lr": args.lr_bert},
+                       ]
+    else:
+        clip_param = [p for n, p in model_without_ddp.named_parameters() if "clip" in n and p.requires_grad]
+        rest_param = [p for n, p in model_without_ddp.named_parameters() if "clip" not in n and p.requires_grad]
 
-    param_list = [{"params": rest_param},
-                   {"params": visu_cnn_param, "lr": args.lr_visu_cnn},
-                   {"params": visu_tra_param, "lr": args.lr_visu_tra},
-                   {"params": text_tra_param, "lr": args.lr_bert},
-                   ]
-    visu_param = [p for n, p in model_without_ddp.named_parameters() if "visumodel" in n and p.requires_grad]
-    text_param = [p for n, p in model_without_ddp.named_parameters() if "textmodel" in n and p.requires_grad]
-    rest_param = [p for n, p in model_without_ddp.named_parameters() if (("visumodel" not in n) and ("textmodel" not in n) and p.requires_grad)]
-    
+        param_list = [{"params": rest_param},
+                      {"params": clip_param, "lr": args.lr_clip},
+                      ]
     
     # using RMSProp or AdamW
     if args.optimizer == 'rmsprop':
@@ -196,6 +215,7 @@ def main(args):
         optimizer = torch.optim.SGD(param_list, lr=args.lr, weight_decay=args.weight_decay, momentum=0.9)
     else:
         raise ValueError('Lr scheduler type not supportted ')
+
 
     # using polynomial lr scheduler or half decay every 10 epochs or step
     if args.lr_scheduler == 'poly':
@@ -229,10 +249,18 @@ def main(args):
     batch_sampler_train = torch.utils.data.BatchSampler(
         sampler_train, args.batch_size, drop_last=True)
 
-    data_loader_train = DataLoader(dataset_train, batch_sampler=batch_sampler_train,
-                                   collate_fn=utils.collate_fn, num_workers=args.num_workers)
-    data_loader_val = DataLoader(dataset_val, args.batch_size, sampler=sampler_val,
-                                 drop_last=False, collate_fn=utils.collate_fn, num_workers=args.num_workers)
+    if args.model_type == "ResNet":
+        data_loader_train = DataLoader(dataset_train, batch_sampler=batch_sampler_train,
+                                       collate_fn=utils.collate_fn, num_workers=args.num_workers)
+
+        data_loader_val = DataLoader(dataset_val, args.batch_size, sampler=sampler_val,
+                                     drop_last=False, collate_fn=utils.collate_fn, num_workers=args.num_workers)
+    else:
+        data_loader_train = DataLoader(dataset_train, batch_sampler=batch_sampler_train,
+                                       collate_fn=utils.collate_fn_clip, num_workers=args.num_workers)
+
+        data_loader_val = DataLoader(dataset_val, args.batch_size, sampler=sampler_val,
+                                     drop_last=False, collate_fn=utils.collate_fn_clip, num_workers=args.num_workers)
 
 
     if args.resume:
@@ -242,6 +270,7 @@ def main(args):
             optimizer.load_state_dict(checkpoint['optimizer'])
             lr_scheduler.load_state_dict(checkpoint['lr_scheduler'])
             args.start_epoch = checkpoint['epoch'] + 1
+
     elif args.detr_model is not None:
         checkpoint = torch.load(args.detr_model, map_location='cpu')
         missing_keys, unexpected_keys = model_without_ddp.visumodel.load_state_dict(checkpoint['model'], strict=False)
@@ -259,6 +288,7 @@ def main(args):
     for epoch in range(args.start_epoch, args.epochs):
         if args.distributed:
             sampler_train.set_epoch(epoch)
+
         train_stats = train_one_epoch(
             args, model, data_loader_train, optimizer, device, epoch, args.clip_max_norm
         )
@@ -277,13 +307,13 @@ def main(args):
 
         if args.output_dir:
             checkpoint_paths = [output_dir / 'checkpoint.pth']
-            # extra checkpoint before LR drop and every 10 epochs
-            if (epoch + 1) % args.lr_drop == 0 or (epoch + 1) % 10 == 0:
+            # extra checkpoint before LR drop and every 5 epochs
+            if (epoch + 1) % args.lr_drop == 0 or (epoch + 1) % 5 == 0:
                 checkpoint_paths.append(output_dir / f'checkpoint{epoch:04}.pth')
             if val_stats['accu'] > best_accu:
                 checkpoint_paths.append(output_dir / 'best_checkpoint.pth')
                 best_accu = val_stats['accu']
-            
+
             for checkpoint_path in checkpoint_paths:
                 utils.save_on_master({
                     'model': model_without_ddp.state_dict(),
@@ -300,7 +330,7 @@ def main(args):
 
 
 if __name__ == '__main__':
-    parser = argparse.ArgumentParser('TransVG training script', parents=[get_args_parser()])
+    parser = argparse.ArgumentParser('Dynamic MDETR training script', parents=[get_args_parser()])
     args = parser.parse_args()
     if args.output_dir:
         Path(args.output_dir).mkdir(parents=True, exist_ok=True)
