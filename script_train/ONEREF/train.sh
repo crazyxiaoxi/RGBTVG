@@ -1,0 +1,5 @@
+export CUDA_VISIBLE_DEVICES=0
+export TORCH_USE_CUDA_DSA=1
+DATA_ROOT="../dataset_and_pretrain_model/datasets/VG/image_data"  
+SPLIT_ROOT="../dataset_and_pretrain_model/datasets/VG/ref_data_shuffled"  
+python -m torch.distributed.launch --nproc_per_node=1 --master_port 28887 --use_env train_oneref.py --num_workers 4 --epochs 10 --batch_size 64 --lr 0.00025  --lr_scheduler cosine --aug_crop --aug_scale --aug_translate    --imsize 384 --max_query_len 64  --model beit3_base_patch16_384 --task grounding  --dataset rgbtvg_flir      --use_regress_box  --frozen_backbone          --finetune ../dataset_and_pretrain_model/pretrain_model/pretrained_weights/OneRef/beit3/beit3_base_indomain_patch16_224.pth --data_root $DATA_ROOT --split_root $SPLIT_ROOT  --output_dir /output_training/ONEREF --mixup --mixup_alpha 0.5  --sentencepiece_model ../dataset_and_pretrain_model/pretrain_model/pretrained_weights/OneRef/BEiT3/beit3.spm --save_ckpt_freq 1 --val_freq 1  --lr_drop 7;
