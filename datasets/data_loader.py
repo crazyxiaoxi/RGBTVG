@@ -449,7 +449,7 @@ class TransVGDataset(data.Dataset):
                    np.array(bbox, dtype=np.float32), np.array(ratio, dtype=np.float32), \
                    np.array(dw, dtype=np.float32), np.array(dh, dtype=np.float32), self.images[idx][0]
         else:  # Avoid 7 return values
-            if self.args.old_dataloader:
+            if getattr(self.args, "old_dataloader", None) ==True:
                 return img, np.array(img_mask), np.array(word_id, dtype=int), np.array(word_mask, dtype=int),  np.array(bbox, dtype=np.float32)
             else :
                 return img, np.array(img_mask), np.array(text, dtype=int), np.array(text_mask, dtype=int),  np.array(bbox, dtype=np.float32), img_file, phrase, bbox_ori, np.array(obj_mask, dtype=int)

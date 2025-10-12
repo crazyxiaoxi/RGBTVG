@@ -1,5 +1,6 @@
-outputs/
-output_training/
+outputs
 __pycache__/
 *.gz
 models/swin_model
+logs
+output_training

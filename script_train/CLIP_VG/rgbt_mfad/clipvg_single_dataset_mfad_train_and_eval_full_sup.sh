@@ -22,7 +22,7 @@ EVAL_ARGS=( --num_workers 4 --modality $MODALITY --batch_size $BATCHSIZE --imsiz
 evaluate() {
     local eval_set=$1
     "${DIST_CMD[@]}" \
-        --master_port 28888 \
+        --master_port 28878 \
         eval_clip_vg.py \
         "${EVAL_ARGS[@]}" \
         --dataset "$DATA_SET" \
@@ -34,7 +34,7 @@ evaluate() {
 }
 # 训练
 "${DIST_CMD[@]}" \
-    --master_port 28887 \
+    --master_port 28877 \
     train_clip_vg.py \
     "${TRAIN_ARGS[@]}" \
     --dataset "$DATA_SET" \
