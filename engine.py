@@ -42,11 +42,12 @@ def train_one_epoch(args, model: torch.nn.Module, data_loader: Iterable,
                 text_data = text_data.to(device)
         else: 
             img_data, text_data, target, obj_mask = batch
+            # text_data = text_data.to(device)
+            obj_mask = obj_mask.to(device)
         extra={'training_states':training_states}
         # copy to GPU
         img_data = img_data.to(device)
         target = target.to(device)
-        # obj_mask = obj_mask.to(device)
         # model forward core-computer
         if 'MMVG' in args.model_name:
             output, text_eos, img_cls, visu_sim, seg_mask = model(img_data, text_data)
@@ -119,7 +120,6 @@ def train_one_epoch_oneref(args, model: torch.nn.Module, data_loader: Iterable,
         obj_mask = obj_mask.to(device)  # obj_mask shape:  torch.Size([96, 1, 224, 224])
         """ If the original text is passed in, uncomment out the following code. """
         # text_data = text_data.to(device)
-
         # model forward
         pred_box, contrastive_loss, visu_sim, seg_mask, mlm_loss, mlm_acc, mlm_sts_pred, mim_pred, mim_vts_pred = \
             model(img_data.tensors, img_data.mask, text_data, global_step=global_step, training=True)
@@ -316,6 +316,7 @@ def evaluate(args, model: torch.nn.Module, data_loader: Iterable, device: torch.
                 text_data = text_data.to(device)
         else:
             img_data, text_data, target, tgt_mask = batch
+            tex_data = text_data.to(device)
             tgt_mask = tgt_mask.to(device)
 
         batch_size = img_data.tensors.size(0)

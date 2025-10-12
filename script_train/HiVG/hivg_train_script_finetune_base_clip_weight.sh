@@ -4,7 +4,7 @@
 export IMGSIZE=224
 export BATCHSIZE=32
 export MODALITY='rgb'
-export CUDADEVICES=3
+export CUDADEVICES=0
 
 # ================= 日志目录 =================
 mkdir -p logs/hivg/rgb

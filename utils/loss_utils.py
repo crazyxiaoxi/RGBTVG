@@ -174,6 +174,9 @@ def sigmoid_focal_loss(inputs, targets, num_boxes, alpha: float = 0.25, gamma: f
         Loss tensor
     """
     prob = inputs.sigmoid()
+    # print("[DEBUG] inputs device:", inputs.device, "targets device:", targets.device)
+    # print("[DEBUG] inputs shape:", inputs.shape, "targets shape:", targets.shape)
+
     ce_loss = F.binary_cross_entropy_with_logits(inputs, targets, reduction="none")
     p_t = prob * targets + (1 - prob) * (1 - targets)
     loss = ce_loss * ((1 - p_t) ** gamma)
@@ -219,6 +222,7 @@ def trans_vg_loss(args, batch_pred, batch_target, tgt_mask, text_eos, img_cls=No
         obj_mask = mdetr_interpolate(tgt_mask.float(), (patch_num, patch_num), mode="nearest")[:, 0] > 0.5
         obj_mask = obj_mask.flatten(1).float()
         visu_sim = visu_sim.flatten(1)
+        # print("[DEBUG] visu_sim:", visu_sim.device, "obj_mask:", obj_mask.device)
         losses['loss_algin_focal'] = sigmoid_focal_loss(visu_sim, obj_mask, num_boxes) * coef_focal
         losses['loss_align_dice'] = dice_loss(visu_sim, obj_mask, num_boxes) * coef_dice
 
