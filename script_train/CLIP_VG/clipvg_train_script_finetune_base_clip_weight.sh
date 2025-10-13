@@ -1,9 +1,9 @@
 #!/bin/bash
 
-export IMGSIZE=640
-export BATCHSIZE=8
+export IMGSIZE=224
+export BATCHSIZE=16
 MODALITY='rgb'
-export CUDADEVICES=1,3
+export CUDADEVICES=1,2,3
 
 mkdir -p logs/clipvg/rgb
 

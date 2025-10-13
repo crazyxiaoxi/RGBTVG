@@ -138,8 +138,8 @@ def main(args):
                                   drop_last=False, collate_fn=utils.collate_fn, num_workers=args.num_workers)
 
     checkpoint = torch.load(args.eval_model, map_location='cpu')
-    import pdb
-    pdb.set_trace()
+    # import pdb
+    # pdb.set_trace()
     model_without_ddp.load_state_dict(checkpoint['model'])
     print("Current model training epoch is: ", checkpoint['epoch'])
 

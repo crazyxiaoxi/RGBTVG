@@ -1,9 +1,9 @@
 #!/bin/bash
-echo -e "\n\n\n\n\n\n\n==================== mdetr mixup ==========================="
+echo -e "\n\n\n\n\n\n\n==================== mmca mixup ==========================="
 
 DATA_SET="rgbtvg_mixup"
 IMGSIZE=${IMGSIZE:-224}
-BATCHSIZE=${BATCHSIZE:-16}
+BATCHSIZE=${BATCHSIZE:-8}
 MODALITY=${MODALITY:-rgbt}
 CUDADEVICES=${CUDADEVICES:-0}
 NPROC_PER_NODE=$(echo "$CUDADEVICES" | tr ',' '\n' | wc -l | awk '{print $1}')
@@ -12,15 +12,16 @@ DIST_CMD=(env CUDA_VISIBLE_DEVICES=$CUDADEVICES python -m torch.distributed.laun
 
 DATA_ROOT="../dataset_and_pretrain_model/datasets/VG/image_data"
 SPLIT_ROOT="../dataset_and_pretrain_model/datasets/VG/ref_data_shuffled"
-EVAL_MODEL_PATH="./output_training/MDETR_rgbt/$DATA_SET/best_checkpoint.pth"
-OUTPUT_DIR="./output_training/MDETR_rgbt/$DATA_SET"
+EVAL_MODEL_PATH="./output_training/MMCA/$DATA_SET/best_checkpoint.pth"
+OUTPUT_DIR="./output_training/MMCA/$DATA_SET"
 
+mkdir -p $OUTPUT_DIR
+
+# ==================== TRAIN ====================
 "${DIST_CMD[@]}" \
-    --master_port 28501 \
-    mdetr_train.py \
-    --model_type ResNet \
+    --master_port 28400 \
+    mmca_train.py \
     --batch_size $BATCHSIZE \
-    --epochs 110 \
     --lr_bert 0.00001 \
     --aug_crop \
     --aug_scale \
@@ -30,50 +31,32 @@ OUTPUT_DIR="./output_training/MDETR_rgbt/$DATA_SET"
     --bert_enc_num 12 \
     --detr_enc_num 6 \
     --dataset $DATA_SET \
-    --max_query_len 40 \
+    --max_query_len 20 \
     --output_dir $OUTPUT_DIR \
-    --stages 3 \
-    --vl_fusion_enc_layers 3 \
-    --uniform_learnable True \
-    --in_points 36 \
-    --lr 1e-4 \
-    --different_transformer True \
-    --lr_drop 60 \
-    --vl_dec_layers 1 \
-    --vl_enc_layers 1 \
-    --clip_max_norm 1.0 \
     --data_root $DATA_ROOT \
     --split_root $SPLIT_ROOT \
-    --model_name MDETR \
-    --modality $MODALITY
+    --modality $MODALITY \
+    --epochs 110 \
+    --lr_drop 60
 
+# ==================== EVALUATE ====================
 evaluate() {
     local eval_set=$1
     "${DIST_CMD[@]}" \
-        --master_port 28600 \
-        mdetr_eval.py \
-        --model_type ResNet \
-        --batch_size $BATCHSIZE \
-        --backbone resnet50 \
+        --master_port 28401 \
+        mmca_eval.py \
+        --batch_size 32 \
+        --num_workers 4 \
         --bert_enc_num 12 \
         --detr_enc_num 6 \
+        --backbone resnet50 \
         --dataset $DATA_SET \
-        --max_query_len 40 \
-        --output_dir $OUTPUT_DIR \
-        --stages 3 \
-        --vl_fusion_enc_layers 3 \
-        --uniform_learnable True \
-        --in_points 36 \
-        --lr 1e-4 \
-        --different_transformer True \
-        --lr_drop 60 \
-        --vl_dec_layers 1 \
-        --vl_enc_layers 1 \
-        --eval_model $EVAL_MODEL_PATH \
+        --max_query_len 20 \
         --eval_set "$eval_set" \
+        --eval_model $EVAL_MODEL_PATH \
+        --output_dir $OUTPUT_DIR \
         --data_root $DATA_ROOT \
         --split_root $SPLIT_ROOT \
-        --model_name MDETR \
         --modality $MODALITY
 }
 

@@ -1,9 +1,9 @@
-export CUDA_VISIBLE_DEVICES=0,1,2
+export CUDA_VISIBLE_DEVICES=1
 # refcocog-g
 DATA_ROOT="../dataset_and_pretrain_model/datasets/VG/image_data"  
 SPLIT_ROOT="../dataset_and_pretrain_model/datasets/VG/ref_data_shuffled"  
 
-python -m torch.distributed.launch --nproc_per_node=3 --use_env --master_port 28887 mdetr_train.py --model_type ResNet --batch_size 16 --lr_bert 0.00001 --aug_crop --aug_scale --aug_translate --backbone resnet50 --detr_model ../dataset_and_pretrain_model/pretrain_model/pretrained_weights/Detr/detr-r50.pth --bert_enc_num 12 --detr_enc_num 6 --dataset rgbtvg_flir --max_query_len 40 --output_dir output_training/MDETR_rgbt --stages 3 --vl_fusion_enc_layers 3 --uniform_learnable True --in_points 36 --lr 1e-4 --different_transformer True --lr_drop 60 --vl_dec_layers 1 --vl_enc_layers 1 --clip_max_norm 1.0 --data_root $DATA_ROOT  --split_root $SPLIT_ROOT
+python -m torch.distributed.launch --nproc_per_node=1 --use_env --master_port 28887 mdetr_train.py --model_type ResNet --batch_size 16 --epoch 1 --lr_bert 0.00001 --aug_crop --aug_scale --aug_translate --backbone resnet50 --detr_model ../dataset_and_pretrain_model/pretrain_model/pretrained_weights/Detr/detr-r50.pth --bert_enc_num 12 --detr_enc_num 6 --dataset rgbtvg_flir --max_query_len 40 --output_dir output_training/MDETR_rgbt --stages 3 --vl_fusion_enc_layers 3 --uniform_learnable True --in_points 36 --lr 1e-4 --different_transformer True --lr_drop 60 --vl_dec_layers 1 --vl_enc_layers 1 --clip_max_norm 1.0 --data_root $DATA_ROOT  --split_root $SPLIT_ROOT --model_name MDETR --modality rgbt
 
 
 ####这里要注意detr的pretrain_moedl用的是之前的版本，太大了我没法下载

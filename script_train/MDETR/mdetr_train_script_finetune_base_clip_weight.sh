@@ -1,15 +1,12 @@
 #!/bin/bash
 
-# ============ 全局训练参数 ============
-export IMGSIZE=640
-export BATCHSIZE=8
+export IMGSIZE=224
+export BATCHSIZE=16
 MODALITY='rgb'
-export CUDADEVICES=3
+export CUDADEVICES=1,2,3
 
-# ============ 日志目录 ============
 mkdir -p logs/mdetr/rgb
 
-# ============ 顺序训练四个数据集 ============
 echo "===== Start FLIR training ====="
 stdbuf -oL -eL bash ./script_train/MDETR/rgbt_flir/mdetr_single_dataset_flir_train_and_eval_full_sup.sh 2>&1 | tee logs/mdetr/rgb/flir_train.log
 

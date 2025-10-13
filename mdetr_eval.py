@@ -21,6 +21,9 @@ from engine import train_one_epoch, evaluate
 
 def get_args_parser():
     parser = argparse.ArgumentParser('Set transformer detector', add_help=False)
+    parser.add_argument('--modality', default='rgbt', type=str)
+    parser.add_argument('--sup_type', default='full', type=str)
+    parser.add_argument('--old_dataloader', default=True, type=bool)
     parser.add_argument('--lr', default=1e-4, type=float)
     parser.add_argument('--lr_bert', default=0., type=float)
     parser.add_argument('--lr_visu_cnn', default=0., type=float)
@@ -111,7 +114,25 @@ def get_args_parser():
                         help='referit/flickr/unc/unc+/gref')
     parser.add_argument('--max_query_len', default=20, type=int,
                         help='maximum time steps (lang length) per batch')
-    
+                    
+    parser.add_argument('--prompt', type=str, default='', help="Prompt template")
+    parser.add_argument('--use_cot_prompt', action='store_true', help="If true, using COT prompt")
+    parser.add_argument('--cot_length', type=int, default=0, help="Prompt template")
+    parser.add_argument('--use_contrastive_loss', action='store_true', help="If true, use contrastive loss")
+    parser.add_argument('--use_rtcc_constrain_loss', action='store_true', help="If true, use contrastive loss")
+    parser.add_argument('--use_mask_loss', action='store_true', help="If true, use segmentation loss")
+    parser.add_argument('--use_seg_mask', action='store_true',
+                        help="If true, use segmentation mask in the segmentation task, otherwise use box mask.")
+    parser.add_argument('--retrain', default='', help='retrain from checkpoint')
+    parser.add_argument('--adapt_mlp', action='store_true', help="If true, use contrastive loss")
+    parser.add_argument('--normalize_before', action='store_true', help="If true, use normalize_before")
+    parser.add_argument('--save_hilora_clip', action='store_true', help="If true, save hilora clip model")
+    parser.add_argument('--hi_lora_stage', default=0, type=int, help='lora stage')
+    parser.add_argument('--hi_lora_retrain', default='', help='lora retrain from checkpoint')
+    parser.add_argument('--hi_lora_clip', default='', type=str, help='clip model')
+    parser.add_argument('--mixup_pretrain', action='store_true', help="If true, use mixup pretraining data")
+    parser.add_argument('--enable_adaptive_weights', action='store_true', help="If true, enable adaptive weight")
+
     # dataset parameters
     parser.add_argument('--output_dir', default='./outputs',
                         help='path where to save, empty for no saving')
@@ -167,6 +188,7 @@ def main(args):
     print('number of params:', n_parameters)
 
     # build dataset
+    print("debug: eval_set is ", args.eval_set)
     dataset_test = build_dataset(args.eval_set, args)
     ## note certain dataset does not have 'test' set:
     ## 'unc': {'train', 'val', 'trainval', 'testA', 'testB'}

@@ -316,7 +316,7 @@ def evaluate(args, model: torch.nn.Module, data_loader: Iterable, device: torch.
                 text_data = text_data.to(device)
         else:
             img_data, text_data, target, tgt_mask = batch
-            tex_data = text_data.to(device)
+            # tex_data = text_data.to(device)
             tgt_mask = tgt_mask.to(device)
 
         batch_size = img_data.tensors.size(0)
@@ -379,7 +379,7 @@ def evaluate(args, model: torch.nn.Module, data_loader: Iterable, device: torch.
             acc_mask_iou = torch.sum(mask_iou_list, dim=0)
             mask_result_tensor = torch.tensor([acc_mask_iou, total_num]).to(device)
 
-    elif args.model_name in ['CLIP_VG', 'TransVG', 'QRNet']:
+    elif args.model_name in ['CLIP_VG', 'TransVG', 'QRNet', 'MDETR' ,'MMCA']:
         accu_num = eval_utils.trans_vg_eval_test_from_clipvg(pred_boxes, gt_boxes)
 
     result_tensor = torch.tensor([accu_num, total_num]).to(device)

@@ -2,9 +2,9 @@
 
 # ================= 全局参数 =================
 export IMGSIZE=224
-export BATCHSIZE=32
+export BATCHSIZE=16
 export MODALITY='rgb'
-export CUDADEVICES=0
+export CUDADEVICES=1,2,3
 
 # ================= 日志目录 =================
 mkdir -p logs/hivg/rgb
