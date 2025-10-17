@@ -28,8 +28,10 @@ class DynamicMDETR(nn.Module):
 
         self.visumodel = build_detr(args)
         self.textmodel = build_bert(args)
-
-        num_total = self.num_visu_token * 2+ self.num_text_token
+        if self.args.modality == 'rgbt':
+            num_total = self.num_visu_token * 2+ self.num_text_token
+        else:
+            num_total = self.num_visu_token + self.num_text_token
         self.vl_pos_embed = nn.Embedding(num_total, hidden_dim)
         self.vl_encoder = build_vl_encoder(args)
 
@@ -96,7 +98,7 @@ class DynamicMDETR(nn.Module):
             pos = pos.reshape(bs, channel, self.visual_feature_map_h, self.visual_feature_map_w*2) # (bs, channel, h, w)
         else:
             feature_map = feature_map.reshape(bs, channel, self.visual_feature_map_h, self.visual_feature_map_w) # (bs, channel, h, w)
-            pos = pos.reshape(bs, channel, self.visual_feature_map_h, self.visual_feature_map_w2) # (bs, channel, h, w)
+            pos = pos.reshape(bs, channel, self.visual_feature_map_h, self.visual_feature_map_w) # (bs, channel, h, w)
         # [0,1] to [-1,1]
         sampled_points = (2 * sampled_points) - 1
 
@@ -123,8 +125,9 @@ class DynamicMDETR(nn.Module):
             visu_src = torch.cat([rgb_src, ir_src], dim=0)  # (2*H*W, B, channel)
             visu_mask = torch.cat([rgb_mask, thermal_mask], dim=1)  # (B, 2*H*W)
         else:
-            out, visu_pos = self.visumodel(img_data)
-            visu_mask, visu_src = out # (B, H*W), (H*W, B, channel)
+            # out, visu_pos = self.visumodel(img_data)
+            # visu_mask, visu_src = out # (B, H*W), (H*W, B, channel)
+            visu_mask, visu_src = self.visumodel(img_data)
             visu_src = self.visu_proj(visu_src)  # (H*W, B, channel)
 
         # 1.2 Language Encoder

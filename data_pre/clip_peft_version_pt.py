@@ -11,8 +11,8 @@ state_dict = checkpoint["model"] if "model" in checkpoint else checkpoint
 
 # 2. 修复键名
 new_state_dict = {}
-import pdb
-pdb.set_trace()
+# import pdb
+# pdb.set_trace()
 for key, value in state_dict.items():
     if 'clip.base_model' in key:
         if ('_attn.k_proj' in key or '_attn.q_proj' in key or '_attn.v_proj' in key or '_attn.out_proj' in key) and ('lora' not in key):
@@ -23,8 +23,8 @@ for key, value in state_dict.items():
             new_state_dict[key] = value
     else:
         new_state_dict[key] = value 
-import pdb
-pdb.set_trace()
+# import pdb
+# pdb.set_trace()
 # 3. 保存
 if "model" in checkpoint:
     checkpoint["model"] = new_state_dict

@@ -6,6 +6,8 @@ IMGSIZE=${IMGSIZE:-224}
 BATCHSIZE=${BATCHSIZE:-4}
 MODALITY=${MODALITY:-rgbt}
 CUDADEVICES=${CUDADEVICES:-3}
+EPOCHS=${EPOCHS:-110}
+
 NPROC_PER_NODE=$(echo "$CUDADEVICES" | tr ',' '\n' | wc -l | awk '{print $1}')
 
 DIST_CMD=(env CUDA_VISIBLE_DEVICES=$CUDADEVICES TORCH_USE_CUDA_DSA=1 python -m torch.distributed.launch --nproc_per_node=$NPROC_PER_NODE --use_env)
@@ -35,7 +37,7 @@ mkdir -p $OUTPUT_DIR
     --split_root $SPLIT_ROOT \
     --max_query_len 20 \
     --output_dir $OUTPUT_DIR \
-    --epochs 110 \
+    --epochs $EPOCHS \
     --lr_drop 60
 
 # ==================== EVALUATE ====================

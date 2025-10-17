@@ -14,8 +14,8 @@ new_state_dict = {}
 for key, value in state_dict.items():
     new_state_dict[key] = value
     if 'vl_pos_embed' in key:
-        import pdb
-        pdb.set_trace()
+        # import pdb
+        # pdb.set_trace()
         reg_cls_pos_embed= value[:2,:]
         visual_pos_embed = value[2:198,:]
         text_pos_embed = value[198:,:]

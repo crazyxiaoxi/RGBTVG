@@ -2,7 +2,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from .vl_transformer import build_vl_transformer
-import pdb
+# import pdb
 from .clip import *
 from torchvision.transforms import Resize
 from utils.misc import (NestedTensor, nested_tensor_from_tensor_list)

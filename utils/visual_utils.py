@@ -46,8 +46,8 @@ def visualization(args, img_data,text_data,pred_bboxes,gt_bboxes,ori_size=(640,5
         imsize = args.imsize
         pred_x_min, pred_y_min, pred_x_max, pred_y_max = (imsize*xywh2xyxy(pred_bbox).numpy()).astype(int)
         gt_x_min, gt_y_min, gt_x_max, gt_y_max = (imsize*xywh2xyxy(gt_bbox).numpy()).astype(int)
-        import pdb
-        pdb.set_trace()
+        # import pdb
+        # pdb.set_trace()
         cv2.rectangle(img_with_bbox, (pred_x_min, pred_y_min), (pred_x_max, pred_y_max), (0, 255, 0), 2)  # 预测 (绿色)
         cv2.rectangle(img_with_bbox, (gt_x_min, gt_y_min), (gt_x_max, gt_y_max), (255, 0, 0), 2)  # 真实 (红色)
 

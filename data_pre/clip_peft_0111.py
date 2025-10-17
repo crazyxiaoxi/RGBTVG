@@ -9,8 +9,8 @@ checkpoint = torch.load(clip_model)
 new_state_dict = {}
 
 for key, value in checkpoint['model'].items():
-    import pdb
-    pdb.set_trace
+    # import pdb
+    # pdb.set_trace
     if 'lora' in key:
         continue
     modified_key = key

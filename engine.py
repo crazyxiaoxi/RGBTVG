@@ -347,7 +347,7 @@ def evaluate(args, model: torch.nn.Module, data_loader: Iterable, device: torch.
         pred_box_list.append(output.cpu())
         gt_box_list.append(target.cpu())
 
-        if not args.old_dataloader:
+        if not hasattr(args, "old_dataloader") or not args.old_dataloader:
             for text_i in text_data:
                 text_list.append(text_i)
         # visualization(args, img_data,text_data,output,target,ori_size=(640,512))

@@ -189,12 +189,12 @@ class CLIP_VG(nn.Module):
             img_data_ir_mask=img_data.mask
             img_data_ir = NestedTensor(image_tensors_ir,img_data_ir_mask)
             img_data.tensors=img_data.tensors[:,:3,:,:]
+            image_features_ir = self.clip.encode_image(image_tensors_ir)  # B * 197 * 512
         batch_size = img_data.tensors.shape[0]
         image_tensors = img_data.tensors
         text_tensors, text_mask = self.encode_text(text_data, img_data.tensors.device) # 4 * 77
         # image_tensors, text_tensors = self.tensorize_inputs(img_data, text_data)
         image_features = self.clip.encode_image(image_tensors)  # B * 197 * 512
-        image_features_ir = self.clip.encode_image(image_tensors_ir)  # B * 197 * 512
         text_features = self.clip.encode_text(text_tensors)  # B * 77 * 512
 
         if self.args.modality =="rgbt":

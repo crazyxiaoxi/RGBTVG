@@ -6,6 +6,8 @@ IMGSIZE=${IMGSIZE:-224}
 BATCHSIZE=${BATCHSIZE:-32}
 MODALITY=${MODALITY:-rgbt}
 CUDADEVICES=${CUDADEVICES:-0}
+EPOCHS=${EPOCHS:-110}
+
 NPROC_PER_NODE=$(echo "$CUDADEVICES" | tr ',' '\n' | wc -l | awk '{print $1}')
 # 分布式训练配置
 DIST_CMD=(env CUDA_VISIBLE_DEVICES=$CUDADEVICES python -m torch.distributed.launch --nproc_per_node=$NPROC_PER_NODE --use_env)
@@ -15,7 +17,7 @@ SPLIT_ROOT="../dataset_and_pretrain_model/datasets/VG/ref_data_shuffled"
 EVAL_MODEL_PATH="./output_training/CLIP_VG_${IMGSIZE}_${MODALITY}/$DATA_SET/best_checkpoint.pth"
 OUTPUT_DIR="./output_training/CLIP_VG_${IMGSIZE}_${MODALITY}/$DATA_SET"
 # 训练参数
-TRAIN_ARGS=(--num_workers 4 --modality $MODALITY --batch_size $BATCHSIZE --imsize $IMGSIZE --epochs 110 --lr 0.00025 --lr_scheduler cosine --aug_crop --aug_scale --aug_translate --vl_hidden_dim 512 --max_query_len 77)
+TRAIN_ARGS=(--num_workers 4 --modality $MODALITY --batch_size $BATCHSIZE --imsize $IMGSIZE --epochs $EPOCHS --lr 0.00025 --lr_scheduler cosine --aug_crop --aug_scale --aug_translate --vl_hidden_dim 512 --max_query_len 77)
 # 评估参数
 EVAL_ARGS=( --num_workers 4 --modality $MODALITY --batch_size $BATCHSIZE --imsize $IMGSIZE --max_query_len 77)
 # 评估函数

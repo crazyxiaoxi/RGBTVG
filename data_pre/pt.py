@@ -9,14 +9,14 @@ state_dict = checkpoint["model"] if "model" in checkpoint else checkpoint
 
 # 2. 修复键名
 new_state_dict = {}
-import pdb
-pdb.set_trace()
+# import pdb
+# pdb.set_trace()
 for key, value in state_dict.items():
     new_key = key.replace("base_model.model.base_model.model", "base_model.model")
     new_key = new_key.replace("base_model.model.base_model.model", "base_model.model")  # 二次替换确保完全修复
     new_state_dict[new_key] = value
-import pdb
-pdb.set_trace()
+# import pdb
+# pdb.set_trace()
 # 3. 保存
 if "model" in checkpoint:
     checkpoint["model"] = new_state_dict

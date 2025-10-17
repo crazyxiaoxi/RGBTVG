@@ -13,7 +13,7 @@ echo -e "\n\n===================== 启动全部训练与测试 =================
 echo -e "\n\n===== 启动 MDETR 训练与测试 ====="
 # bash ./script_train/MDETR/mdetr_train_script_finetune_base_clip_weight.sh $IMGSIZE $BATCHSIZE $MODALITY $CUDADEVICES $EPOCHS
 
-echo -e "\n\n===== 启动 MMCA 训练与测试 ====="
+# echo -e "\n\n===== 启动 MMCA 训练与测试 ====="
 # bash ./script_train/MMCA_VG/mmca_train_script_finetune_base_clip_weight.sh $IMGSIZE $BATCHSIZE $MODALITY $CUDADEVICES $EPOCHS
 
 echo -e "\n\n===== 启动 TRANSVG 训练与测试 ====="

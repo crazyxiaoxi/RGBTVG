@@ -6,6 +6,7 @@ IMGSIZE=${IMGSIZE:-224}
 BATCHSIZE=${BATCHSIZE:-16}
 MODALITY=${MODALITY:-rgbt}
 CUDADEVICES=${CUDADEVICES:-0}
+EPOCHS=${EPOCHS:-110}
 NPROC_PER_NODE=$(echo "$CUDADEVICES" | tr ',' '\n' | wc -l | awk '{print $1}')
 
 DIST_CMD=(env CUDA_VISIBLE_DEVICES=$CUDADEVICES python -m torch.distributed.launch --nproc_per_node=$NPROC_PER_NODE --use_env)
@@ -20,7 +21,7 @@ OUTPUT_DIR="./output_training/MDETR_rgbt/$DATA_SET"
     mdetr_train.py \
     --model_type ResNet \
     --batch_size $BATCHSIZE \
-    --epochs 110 \
+    --epochs $EPOCHS \
     --lr_bert 0.00001 \
     --aug_crop \
     --aug_scale \
