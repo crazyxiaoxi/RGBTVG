@@ -84,3 +84,22 @@ evaluate "test"
 evaluate "testA"
 evaluate "testB"
 evaluate "testC"
+
+
+
+DATA_SET_TEST="rgbtvg_mixup"
+OTHER_DATASETS=("rgbtvg_flir" "rgbtvg_m3fd" "rgbtvg_mfad")
+
+for DATA_SET in "${OTHER_DATASETS[@]}"; do
+    echo -e "\n\n==================== Evaluating dataset: $DATA_SET ==========================="
+
+    EVAL_MODEL_PATH="./output_training/MDETR_$MODALITY/$DATA_SET_TEST/best_checkpoint.pth"
+    OUTPUT_DIR="./output_training/MDETR_$MODALITY/$DATA_SET_TEST"
+    mkdir -p $OUTPUT_DIR
+
+    evaluate "val"
+    evaluate "test"
+    evaluate "testA"
+    evaluate "testB"
+    evaluate "testC"
+done
