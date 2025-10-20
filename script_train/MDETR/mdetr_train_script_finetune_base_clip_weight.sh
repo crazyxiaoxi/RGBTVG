@@ -25,4 +25,4 @@ echo "===== Start MFAD training ====="
 stdbuf -oL -eL bash ./script_train/MDETR/rgbt_mfad/mdetr_single_dataset_mfad_train_and_eval_full_sup.sh 2>&1 | tee logs/mdetr/$MODALITY/mfad_train.log
 
 echo "===== Start MIXUP training ====="
-stdbuf -oL -eL bash ./script_train/MDETR/rgbtvg_mixup/mdetr_mixup_dataset_train_and_eval_full_sup.sh 2>&1 | tee logs/mdetr/$MODALITY/mixup_train.log
+# stdbuf -oL -eL bash ./script_train/MDETR/rgbtvg_mixup/mdetr_mixup_dataset_train_and_eval_full_sup.sh 2>&1 | tee logs/mdetr/$MODALITY/mixup_train.log

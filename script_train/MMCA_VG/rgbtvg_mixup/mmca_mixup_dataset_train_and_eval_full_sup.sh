@@ -14,8 +14,8 @@ DIST_CMD=(env CUDA_VISIBLE_DEVICES=$CUDADEVICES python -m torch.distributed.laun
 
 DATA_ROOT="../dataset_and_pretrain_model/datasets/VG/image_data"
 SPLIT_ROOT="../dataset_and_pretrain_model/datasets/VG/ref_data_shuffled"
-EVAL_MODEL_PATH="./output_training/MMCA/$DATA_SET/best_checkpoint.pth"
-OUTPUT_DIR="./output_training/MMCA/$DATA_SET"
+EVAL_MODEL_PATH="./output_training/MMCA_$MODALITY/$DATA_SET/best_checkpoint.pth"
+OUTPUT_DIR="./output_training/MMCA_$MODALITY/$DATA_SET"
 
 mkdir -p $OUTPUT_DIR
 

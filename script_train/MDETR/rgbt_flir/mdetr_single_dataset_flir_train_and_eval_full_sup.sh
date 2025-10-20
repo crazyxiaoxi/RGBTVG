@@ -13,8 +13,8 @@ DIST_CMD=(env CUDA_VISIBLE_DEVICES=$CUDADEVICES python -m torch.distributed.laun
 
 DATA_ROOT="../dataset_and_pretrain_model/datasets/VG/image_data"
 SPLIT_ROOT="../dataset_and_pretrain_model/datasets/VG/ref_data_shuffled"
-EVAL_MODEL_PATH="./output_training/MDETR_rgbt/$DATA_SET/best_checkpoint.pth"
-OUTPUT_DIR="./output_training/MDETR_rgbt/$DATA_SET"
+EVAL_MODEL_PATH="./output_training/MDETR_$MODALITY/$DATA_SET/best_checkpoint.pth"
+OUTPUT_DIR="./output_training/MDETR_$MODALITY/$DATA_SET"
 
 "${DIST_CMD[@]}" \
     --master_port 28500 \
