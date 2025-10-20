@@ -124,7 +124,7 @@ class DynamicMDETR(nn.Module):
             ir_src = self.visu_proj(thermal_src)  # (H*W, B, channel)
             visu_src = torch.cat([rgb_src, ir_src], dim=0)  # (2*H*W, B, channel)
             visu_mask = torch.cat([rgb_mask, thermal_mask], dim=1)  # (B, 2*H*W)
-        else:
+        elif self.args.modality == 'rgb':
             # out, visu_pos = self.visumodel(img_data)
             # visu_mask, visu_src = out # (B, H*W), (H*W, B, channel)
             visu_mask, visu_src = self.visumodel(img_data)
