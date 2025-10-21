@@ -4,3 +4,5 @@ __pycache__/
 models/swin_model
 logs
 output_training
+train.sh
+train1.sh
