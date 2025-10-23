@@ -16,7 +16,7 @@ echo "Start TRANS-VG training with IMGSIZE=$IMGSIZE BATCHSIZE=$BATCHSIZE CUDA=$C
 mkdir -p logs/transvg/$MODALITY
 
 echo "===== Start TransVG FLIR training ====="
-stdbuf -oL -eL bash ./script_train/TRANS_VG/rgbt_flir/transvg_single_dataset_flir_train_and_eval_full_sup.sh $IMGSIZE $BATCHSIZE $MODALITY $CUDADEVICES 2>&1 | tee logs/transvg/$MODALITY/flir_train.log
+# stdbuf -oL -eL bash ./script_train/TRANS_VG/rgbt_flir/transvg_single_dataset_flir_train_and_eval_full_sup.sh $IMGSIZE $BATCHSIZE $MODALITY $CUDADEVICES 2>&1 | tee logs/transvg/$MODALITY/flir_train.log
 
 echo "===== Start TransVG M3FD training ====="
 stdbuf -oL -eL bash ./script_train/TRANS_VG/rgbt_m3fd/transvg_single_dataset_m3fd_train_and_eval_full_sup.sh $IMGSIZE $BATCHSIZE $MODALITY $CUDADEVICES 2>&1 | tee logs/transvg/$MODALITY/m3fd_train.log
