@@ -8,6 +8,11 @@ MODALITY=${MODALITY:-rgbt}
 CUDADEVICES=${CUDADEVICES:-0}
 EPOCHS=${EPOCHS:-110}
 
+if [[ "$MODALITY" == "ir" || "$MODALITY" == "rgb" ]]; then
+    echo "MODALITY is '$MODALITY', script will not run."
+    exit 0
+fi
+
 NPROC_PER_NODE=$(echo "$CUDADEVICES" | tr ',' '\n' | wc -l | awk '{print $1}')
 
 DIST_CMD=(env CUDA_VISIBLE_DEVICES=$CUDADEVICES python -m torch.distributed.launch --nproc_per_node=$NPROC_PER_NODE --use_env)

@@ -4,6 +4,12 @@ IMGSIZE=${IMGSIZE:-224}
 BATCHSIZE=${BATCHSIZE:-32}
 MODALITY=${MODALITY:-rgbt}
 CUDADEVICES=${CUDADEVICES:-0}
+
+if [[ "$MODALITY" == "ir" || "$MODALITY" == "rgb" ]]; then
+    echo "MODALITY is '$MODALITY', script will not run."
+    exit 0
+fi
+
 NPROC_PER_NODE=$(echo "$CUDADEVICES" | tr ',' '\n' | wc -l | awk '{print $1}')
 # 分布式训练配置
 DIST_CMD=(env CUDA_VISIBLE_DEVICES=$CUDADEVICES python -m torch.distributed.launch --nproc_per_node=$NPROC_PER_NODE --use_env)
