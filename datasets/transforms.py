@@ -267,7 +267,6 @@ class NormalizeAndPad(object):
     
     def __call__(self, input_dict):
         img = input_dict['img']
-
         img = F.normalize(img, mean=self.mean, std=self.std)
         h, w = img.shape[1:]
         dw = self.size - w

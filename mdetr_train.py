@@ -231,7 +231,6 @@ def main(args):
         lr_scheduler = torch.optim.lr_scheduler.StepLR(optimizer, args.lr_drop)
     else:
         raise ValueError('Lr scheduler type not supportted ')
-
     # build dataset
     dataset_train = build_dataset('train', args)
     dataset_val   = build_dataset('val', args)

@@ -19,11 +19,12 @@ class DynamicMDETR(nn.Module):
     def __init__(self, args):
         super(DynamicMDETR, self).__init__()
         hidden_dim = args.vl_hidden_dim
+        print("Using hidden_dim:!!!!!!!!!!!!!!!", hidden_dim)
         divisor = 16 if args.dilation else 32
 
         # for vit-B-16
         divisor=16
-
+        self.args = args
         self.num_visu_token = int((args.imsize / divisor) ** 2)
         self.num_text_token = args.max_query_len
         self.uniform_grid = args.uniform_grid
@@ -31,10 +32,14 @@ class DynamicMDETR(nn.Module):
         self.different_transformer = args.different_transformer
 
         self.clip, preprocess = clip.load("ViT-B/16")
-
-        num_total = self.num_visu_token + self.num_text_token
+        if self.args.modality == 'rgbt':
+            num_total = self.num_visu_token * 2 + self.num_text_token
+        else :
+            num_total = self.num_visu_token + self.num_text_token
         self.vl_pos_embed = nn.Embedding(num_total, hidden_dim)
         self.vl_encoder = build_vl_encoder(args)
+        self.visu_proj = nn.Linear(512, hidden_dim)
+        self.text_proj = nn.Linear(512, hidden_dim)
 
         # for vit-B-16
         self.visual_feature_map_h = int(args.imsize / divisor)
@@ -89,9 +94,12 @@ class DynamicMDETR(nn.Module):
         else:
             xy_offsets = self.offset_generators[stage](content_query).reshape(bs, self.in_points, 2)
             sampled_points = (xy_offsets.permute(1, 0, 2) + reference_point).permute(1, 0, 2)  # (bs, in_points, 2)
-        feature_map = feature_map.reshape(bs, channel, self.visual_feature_map_h, self.visual_feature_map_w) # (bs, channel, h, w)
-        pos = pos.reshape(bs, channel, self.visual_feature_map_h, self.visual_feature_map_w) # (bs, channel, h, w)
-
+        if self.args.modality == 'rgbt':
+            feature_map = feature_map.reshape(bs, channel, self.visual_feature_map_h, self.visual_feature_map_w*2) 
+            pos = pos.reshape(bs, channel, self.visual_feature_map_h, self.visual_feature_map_w*2) 
+        else :
+            feature_map = feature_map.reshape(bs, channel, self.visual_feature_map_h, self.visual_feature_map_w)  # (bs, channel, h, w)
+            pos = pos.reshape(bs, channel, self.visual_feature_map_h, self.visual_feature_map_w)  # (bs, channel, h, w)
         sampled_points = (2 * sampled_points) - 1
 
         sampled_features = grid_sample(feature_map, sampled_points.unsqueeze(2), mode='bilinear', padding_mode='border',
@@ -108,13 +116,21 @@ class DynamicMDETR(nn.Module):
         # visu_src: (bs, h/patch_size * w/patch_size = 1600, channel=512), visu_mask: (bs, h/patch_size * w/patch_size = 1600)
         # text_src: (bs, max_len = 40, channel=512), visu_mask: (bs, max_len = 40)
         # if with proj, channel from 768 to 512
-        visu_src, visu_mask = self.clip.encode_image(img_data)
-        text_src, text_mask = self.clip.encode_text(text_data, self.num_text_token)
+        if self.args.modality == 'rgbt':
+            rgb_data = img_data[:, 0:3, :, :]
+            t_data = img_data[:, 3:4, :, :].repeat(1,3,1,1)
+            visu_src_rgb, visu_mask_rgb = self.clip.encode_image(rgb_data)
+            visu_src_t, visu_mask_t = self.clip.encode_image(t_data)
+            visu_src = torch.cat([visu_src_rgb, visu_src_t], dim=1)
+            visu_mask = torch.cat([visu_mask_rgb, visu_mask_t], dim=1)
+        else :
+            visu_src, visu_mask = self.clip.encode_image(img_data)
 
+        text_src, text_mask = self.clip.encode_text(text_data, self.num_text_token)
         # visu_src: (bs, h/patch_size * w/patch_size = 400, channel=256)
         # text_src: (bs, max_len = 40, channel=256)
-        # visu_src = self.visu_proj(visu_src)
-        # text_src = self.text_proj(text_src)
+        visu_src = self.visu_proj(visu_src)
+        text_src = self.text_proj(text_src)
         # assert visu_src.shape[1] == 1600
         # assert text_src.shape[1] == 40
 
@@ -131,10 +147,16 @@ class DynamicMDETR(nn.Module):
         vl_feat = self.vl_encoder(vl_src, vl_mask, vl_pos)  # (L+N)xBxC
 
         # v_pos: (1600, bs, channel=512), l_pos: (40, bs, channel=512)
-        v_pos = vl_pos[:self.num_visu_token]
-        l_pos = vl_pos[self.num_visu_token:]
-        visu_feat = vl_feat[:self.num_visu_token] # (H*W, B, channel)
-        language_feat = vl_feat[self.num_visu_token:] # (max_len, B, channel)
+        if self.args.modality == 'rgbt':
+            v_pos = vl_pos[:self.num_visu_token * 2]
+            l_pos = vl_pos[self.num_visu_token * 2:]
+            visu_feat = vl_feat[:self.num_visu_token * 2] # (H*W, B, channel)
+            language_feat = vl_feat[self.num_visu_token * 2:] # (max_len, B, channel)
+        else :
+            v_pos = vl_pos[:self.num_visu_token]
+            l_pos = vl_pos[self.num_visu_token:]
+            visu_feat = vl_feat[:self.num_visu_token] # (H*W, B, channel)
+            language_feat = vl_feat[self.num_visu_token:] # (max_len, B, channel)
 
         content_query = self.init_content_feature.weight.repeat(bs, 1)
         reference_point = self.init_reference_point.weight.repeat(bs, 1)

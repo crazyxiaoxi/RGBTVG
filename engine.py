@@ -17,7 +17,7 @@ import utils.eval_utils as eval_utils
 from utils.box_utils import xywh2xyxy
 from utils.visual_utils import visualization
 import numpy as np
-from models.clip import clip
+from models.clip_mdetr import clip
 
 # TODO: 训练核心代码
 def train_one_epoch(args, model: torch.nn.Module, data_loader: Iterable,

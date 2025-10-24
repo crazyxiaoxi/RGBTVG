@@ -2,7 +2,7 @@
 from torchvision.transforms import Compose, ToTensor, Normalize
 
 import datasets.transforms as T
-from .data_loader import TransVGDataset
+from .data_loader import TransVGDataset, MDETRCLIP
 
 """"CLIP's default transform"""
 # def _transform(n_px):
@@ -100,12 +100,21 @@ def make_transforms(args, image_set, is_onestage=False):
 # args.data_root default='./ln_data/', args.split_root default='data', '--dataset', default='referit'
 # split = test, testA, val, args.max_query_len = 20
 def build_dataset(split, args):
-    return TransVGDataset(args,
-                          data_root=args.data_root,
-                          split_root=args.split_root,
-                          dataset=args.dataset,
-                          split=split,
-                          transform=make_transforms(args, split),
-                          max_query_len=args.max_query_len,
-                          prompt_template=args.prompt,
-                          bert_model='../dataset_and_pretrain_model/pretrain_model/pretrained_weights/Bert')
+    if hasattr(args, 'model_type') and args.model_type == 'CLIP':
+        return MDETRCLIP(args,
+                        data_root=args.data_root,
+                        split_root=args.split_root,
+                        dataset=args.dataset,
+                        split=split,
+                        transform=make_transforms(args, split),
+                        max_query_len=args.max_query_len)
+    else:
+        return TransVGDataset(args,
+                            data_root=args.data_root,
+                            split_root=args.split_root,
+                            dataset=args.dataset,
+                            split=split,
+                            transform=make_transforms(args, split),
+                            max_query_len=args.max_query_len,
+                            prompt_template=args.prompt,
+                            bert_model='../dataset_and_pretrain_model/pretrain_model/pretrained_weights/Bert')

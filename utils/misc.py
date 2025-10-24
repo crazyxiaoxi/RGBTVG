@@ -319,6 +319,16 @@ def collate_fn(raw_batch):
             batch = [img_data, phrase, bbox, obj_mask]
     return tuple(batch)
 
+def collate_fn_clip(raw_batch):
+    raw_batch = list(zip(*raw_batch))
+    img = torch.stack(raw_batch[0])
+    img_data = img
+    text_data = list(raw_batch[1])
+    bbox = torch.tensor(raw_batch[2])
+    
+    batch = [img_data, text_data, bbox]
+
+    return tuple(batch)
 
 def collate_fn_filtering(raw_batch):
     raw_batch = list(zip(*raw_batch))
