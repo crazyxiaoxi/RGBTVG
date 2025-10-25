@@ -259,3 +259,83 @@ def trans_vg_loss_from_clipvg(batch_pred, batch_target):
     losses['loss_giou'] = loss_giou.sum() / num_boxes
 
     return losses
+
+
+def one_ref_loss(args, batch_pred, batch_target, tgt_mask, contrastive_loss, visu_sim=None, seg_mask=None,
+                 mim_pred=None, mim_labels=None, mim_vts_pred=None, mim_vts_labels=None,
+                 mlm_loss=None, mlm_sts_pred=None, mlm_sts_labels=None):
+    """Compute the losses related to the bounding boxes,
+       including the L1 regression loss and the GIoU loss
+    """
+
+    batch_size = batch_pred.shape[0]
+    # world_size = get_world_size()
+    num_boxes = batch_size
+
+    loss_bbox = F.l1_loss(batch_pred, batch_target, reduction='none')
+    loss_giou = 1 - torch.diag(generalized_box_iou(
+        xywh2xyxy(batch_pred),
+        xywh2xyxy(batch_target)
+    ))
+
+    losses = {}
+    if args.use_regress_box:
+        losses['loss_bbox'] = loss_bbox.sum() / num_boxes
+        losses['loss_giou'] = loss_giou.sum() / num_boxes
+
+    if args.use_contrastive_loss:
+        # losses['loss_contrastive'] = (contrastive_loss / num_boxes) * 10.0
+        losses['loss_contrastive'] = contrastive_loss / num_boxes
+        """DO NOT multiply by 10, or the performance will drop sharply."""
+        # losses['loss_contrastive'] = contrastive_loss * 100.0
+        # losses['loss_contrastive'] = contrastive_loss * 10.0
+
+    """ box mask constraints was proposed in HiVG """
+    if args.use_box_mask_constraints or args.enable_dynamic_mim:
+        coef_focal = 20.0
+        coef_dice = 2.0
+        patch_num = int(mpmath.sqrt(visu_sim.shape[-1]))
+        # Downward interpolation, the shape of tgt_mask is B C H W.
+        obj_mask = mdetr_interpolate(tgt_mask.float(), (patch_num, patch_num), mode="nearest")[:, 0] > 0.5
+        obj_mask = obj_mask.flatten(1).float()
+        visu_sim = visu_sim.flatten(1)
+        losses['loss_mrm_focal'] = sigmoid_focal_loss(visu_sim, obj_mask, num_boxes) * coef_focal
+        losses['loss_mrm_dice'] = dice_loss(visu_sim, obj_mask, num_boxes) * coef_dice
+
+    if args.use_mask_loss:
+        coef_focal = 20.0
+        coef_dice = 2.0
+        # Interpolation upwards, the shape of seg_mask is B C H W
+        src_mask = mdetr_interpolate(seg_mask, size=tgt_mask.shape[-2:], mode="bilinear", align_corners=False)
+        src_mask = src_mask.flatten(1)
+        tgt_mask = tgt_mask.flatten(1).float()
+
+        losses['loss_seg_focal'] = sigmoid_focal_loss(src_mask, tgt_mask, num_boxes) * coef_focal
+        losses['loss_seg_dice'] = dice_loss(src_mask, tgt_mask, num_boxes) * coef_dice
+
+    if args.enable_ref_mlm and mlm_loss is not None:
+        # losses['loss_mlm'] = mlm_loss * 10.0
+        losses['loss_mlm'] = mlm_loss
+        if args.enable_mlm_sts and mlm_sts_pred.shape == mlm_sts_labels.shape:
+            kl_loss = nn.KLDivLoss(reduction="batchmean")  # mlm_sts_pred is torch.Size([64, 62])
+            losses['loss_mlm_sts'] = kl_loss(F.log_softmax(mlm_sts_pred, dim=-1), F.softmax(mlm_sts_labels, dim=-1))
+
+    if args.enable_ref_mim and mim_pred is not None:
+        loss_fn = nn.CrossEntropyLoss()
+        if isinstance(mim_pred, list):
+            loss_1 = loss_fn(input=mim_pred[0], target=mim_labels)
+            loss_2 = loss_fn(input=mim_pred[1], target=mim_labels)
+            losses['loss_mim'] = loss_1 + loss_2
+        else:
+            # mim pred shape:  torch.Size([5520, 8192]), mim_labels:  torch.Size([5520])
+            # The 0-th dimension of min_pred and mim_labels varies due to the random number of mask positions
+            losses['loss_mim'] = loss_fn(input=mim_pred, target=mim_labels)  # tensor(9.7763, device='cuda:0')
+            if args.enable_mim_vts and mim_vts_pred is not None:
+                mim_vts_loss = F.l1_loss(mim_vts_pred, mim_vts_labels, reduction='none')  # torch.Size([64, 576, 4])
+                # Implementation version 2
+                losses['loss_mim_vts'] = mim_vts_loss.sum(dim=-1).mean()  # tensor(1.7184, device='cuda:0')
+                # Implementation version 2
+                # losses['loss_mim_vts'] = mim_vts_loss.sum(dim=-1).sum(dim=-1).mean()  # tensor(429.6270, 'cuda:0')
+
+    return losses
+

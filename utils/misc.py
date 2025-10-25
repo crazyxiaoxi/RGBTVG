@@ -23,6 +23,19 @@ if 0.7 > float(torchvision.__version__[:3]) > 0.1:
     from torchvision.ops import _new_empty_tensor
     from torchvision.ops.misc import _output_size
 
+def bool_flag(s):
+    """
+    Parse boolean arguments from the command line.
+    """
+    FALSY_STRINGS = {"off", "false", "0"}
+    TRUTHY_STRINGS = {"on", "true", "1"}
+    if s.lower() in FALSY_STRINGS:
+        return False
+    elif s.lower() in TRUTHY_STRINGS:
+        return True
+    else:
+        raise argparse.ArgumentTypeError("invalid value for a boolean flag")
+
 
 class SmoothedValue(object):
     """Track a series of values and provide access to smoothed values over a
@@ -329,6 +342,39 @@ def collate_fn_clip(raw_batch):
     batch = [img_data, text_data, bbox]
 
     return tuple(batch)
+
+def collate_fn_mim(raw_batch):
+    raw_batch = list(zip(*raw_batch))
+
+    img = torch.stack(raw_batch[0])
+    img_mask = torch.tensor(np.array(raw_batch[1]))  # img_mask = torch.tensor(raw_batch[1])
+    # 在此次完成数据的 NestedTensor 拼接
+    img_data = NestedTensor(img, img_mask)
+    word_id = torch.tensor(np.array(raw_batch[2]))  # word_id = torch.tensor(raw_batch[2])
+    word_mask = torch.from_numpy(np.array(raw_batch[3]))  # word_mask = torch.tensor(raw_batch[3])
+    text_data = NestedTensor(word_id, word_mask)
+    bbox = torch.tensor(np.array(raw_batch[4]))  # bbox = torch.tensor(raw_batch[4])
+    obj_mask = torch.tensor(np.array(raw_batch[8]))  # 新增分割掩码
+    # obj_mask = raw_batch[8]  # 新增分割掩码
+    # print("obj_mask", obj_mask)
+    phrase = raw_batch[6]  # 新增，输入原始 phrase
+    bbox_ori = raw_batch[7]
+    mim_img = torch.stack(raw_batch[9])
+    mim_mask_pos = torch.tensor(np.array(raw_batch[10]))
+    mim_vts_labels = torch.tensor(np.array(raw_batch[11]))
+    mlm_sts_labels = torch.tensor(np.array(raw_batch[12]))
+
+    if len(raw_batch) == 7:
+        batch = [img_data, text_data, bbox, raw_batch[5], raw_batch[6]]
+    else:
+        """The encoded text token and mask versions are passed in."""
+        # batch = [img_data, text_data, bbox, obj_mask]
+        """Pass in the version of the original text"""
+        # batch = [img_data, phrase, bbox, obj_mask]
+        """Pass in the version of the original text +mim token and mim pos"""
+        batch = [img_data, phrase, bbox, obj_mask, mim_img, mim_mask_pos, mim_vts_labels, mlm_sts_labels]
+    return tuple(batch)
+
 
 def collate_fn_filtering(raw_batch):
     raw_batch = list(zip(*raw_batch))

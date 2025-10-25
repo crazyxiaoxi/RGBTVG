@@ -316,3 +316,126 @@ class NormalizeAndPad(object):
 
         return input_dict
 
+
+class NormalizeAndPad_FOR_MIM(object):
+    def __init__(self, mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225], size=640, aug_translate=False):
+        self.mean = mean
+        self.std = std
+        self.size = size
+        self.aug_translate = aug_translate
+
+    def translate_or_pad(self, input_dict, top, left, h, w):
+        img = input_dict['img']
+        # dw = (self.size - w) / 2.0
+        # dh = (self.size - h) / 2.0
+        # top, bottom = round(dh - 0.1), round(dh + 0.1)
+        # left, right = round(dw - 0.1), round(dw + 0.1)
+
+        out_img = torch.zeros((3, self.size, self.size)).float()
+        out_mask = torch.ones((self.size, self.size)).int()
+
+        """Note that here the mask is set. By default, it is 0 where there is an image and 1 where there is no image"""
+        out_img[:, top:top + h, left:left + w] = img
+        out_mask[top:top + h, left:left + w] = 0
+
+        input_dict['img'] = out_img
+        input_dict['mask'] = out_mask
+
+        if 'obj_mask' in input_dict.keys():
+            obj_mask = torch.zeros((1, self.size, self.size)).float()
+            obj_mask[:, top:top + h, left:left + w] = input_dict['obj_mask']
+            input_dict['obj_mask'] = obj_mask
+
+        if 'box' in input_dict.keys():
+            box = input_dict['box']  # x1y1x2y2 格式, 且为 tensor
+            box[0], box[2] = box[0] + left, box[2] + left
+            box[1], box[3] = box[1] + top, box[3] + top
+            h, w = out_img.shape[-2:]
+            box = xyxy2xywh(box)  # xcycwh
+            # bbox norm, and xywh
+            box = box / torch.tensor([w, h, w, h], dtype=torch.float32)
+            input_dict['box'] = box
+
+        return input_dict
+
+    def __call__(self, input_dict):
+        for_patches = input_dict.copy()
+        for_visual_tokens = input_dict.copy()
+        # img = input_dict['img']
+        for_patches['img'] = F.normalize(for_patches['img'], mean=self.mean, std=self.std)
+        h, w = for_patches['img'].shape[1:]
+
+        # print("\n\n\n h: ", h, ", w: ", w, ", self.size: ", self.size)
+        # if h > self.size or w > self.size:
+        #     raise ValueError("h and w must smaller than set size.")
+
+        dw = self.size - w
+        dh = self.size - h
+        # print("\nimg shape: ", img.shape)
+        # print("dw: ", dw, ", dh: ", dh)
+
+        if self.aug_translate:
+            top = random.randint(0, dh)
+            left = random.randint(0, dw)
+        else:
+            top = round(dh / 2.0 - 0.1)
+            left = round(dw / 2.0 - 0.1)
+
+        for_patches = self.translate_or_pad(for_patches, top, left, h, w)
+        for_visual_tokens = self.translate_or_pad(for_visual_tokens, top, left, h, w)
+
+        return for_patches, for_visual_tokens
+
+
+class WithoutNormAndPad(object):
+    def __init__(self, mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225], size=640, aug_translate=False):
+        self.mean = mean
+        self.std = std
+        self.size = size
+        self.aug_translate = aug_translate
+
+    def __call__(self, input_dict):
+        img = input_dict['img']
+        # img = F.normalize(img, mean=self.mean, std=self.std)  # mim 不需要 norm
+
+        h, w = img.shape[1:]
+        dw = self.size - w
+        dh = self.size - h
+
+        if self.aug_translate:
+            top = random.randint(0, dh)
+            left = random.randint(0, dw)
+        else:
+            top = round(dh / 2.0 - 0.1)
+            left = round(dw / 2.0 - 0.1)
+
+        # dw = (self.size - w) / 2.0
+        # dh = (self.size - h) / 2.0
+        # top, bottom = round(dh - 0.1), round(dh + 0.1)
+        # left, right = round(dw - 0.1), round(dw + 0.1)
+
+        out_img = torch.zeros((3, self.size, self.size)).float()
+        out_mask = torch.ones((self.size, self.size)).int()
+
+        out_img[:, top:top + h, left:left + w] = img
+        out_mask[top:top + h, left:left + w] = 0
+
+        input_dict['img'] = out_img
+        input_dict['mask'] = out_mask
+
+        if 'obj_mask' in input_dict.keys():
+            obj_mask = torch.zeros((1, self.size, self.size)).float()
+            obj_mask[:, top:top + h, left:left + w] = input_dict['obj_mask']
+            input_dict['obj_mask'] = obj_mask
+
+        if 'box' in input_dict.keys():
+            box = input_dict['box']
+            box[0], box[2] = box[0] + left, box[2] + left
+            box[1], box[3] = box[1] + top, box[3] + top
+            h, w = out_img.shape[-2:]
+            box = xyxy2xywh(box)
+            box = box / torch.tensor([w, h, w, h], dtype=torch.float32)
+            input_dict['box'] = box
+
+        return input_dict
+

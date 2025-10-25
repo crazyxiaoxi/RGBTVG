@@ -175,6 +175,7 @@ def main(args):
     print('### INFO ### torch.backends.cudnn.benchmark = {}'.format(torch.backends.cudnn.benchmark))
 
     # If the suffix of the model does not include the task, then include the task name
+    print("!!!!I want model name",args.model)
     if not args.model.endswith(args.task):
         if args.task in ("flickr30k", "coco_retrieval"):
             model_config = "%s_retrieval" % args.model

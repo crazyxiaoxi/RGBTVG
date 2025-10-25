@@ -413,6 +413,11 @@ def beit3_base_patch16_384_grounding(sys_args, pretrained=False, **kwargs):
     model = BEiT3ForGrounding(sys_args, args, **kwargs)
     return model
 
+@register_model
+def beit3_base_patch16_224_grounding(sys_args, pretrained=False, **kwargs):
+    args = _get_base_config(img_size=224, **kwargs)  # Return the basic model configuration information.
+    model = BEiT3ForGrounding(sys_args, args, **kwargs)
+    return model
 
 @register_model
 def beit3_base_patch16_480_grounding(sys_args, pretrained=False, **kwargs):

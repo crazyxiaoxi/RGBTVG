@@ -152,6 +152,10 @@ def convert_examples_to_features(examples, seq_length, tokenizer):
 class DatasetNotFoundError(Exception):
     pass
 
+def get_sentencepiece_model_for_beit3(args):
+    from transformers import XLMRobertaTokenizer
+    return XLMRobertaTokenizer(args.sentencepiece_model)
+
 
 class TransVGDataset(data.Dataset):
     SUPPORTED_DATASETS = {
@@ -211,9 +215,18 @@ class TransVGDataset(data.Dataset):
         self.transform = transform
         self.testmode = testmode
         self.split = split
-        self.tokenizer = BertTokenizer.from_pretrained(bert_model, do_lower_case=True)
         self.return_idx = return_idx
         self.use_seg_mask = getattr(args, 'use_seg_mask', None)
+
+        if hasattr(args, 'model_name') and args.model_name in ['OneRef', 'OneRefCLIP']:
+            self.tokenizer = get_sentencepiece_model_for_beit3(args)
+            self.num_max_bpe_tokens = max_query_len  # self.num_max_bpe_tokens = num_max_bpe_tokens default equal 64
+            self.bos_token_id = self.tokenizer.bos_token_id
+            self.eos_token_id = self.tokenizer.eos_token_id
+            self.pad_token_id = self.tokenizer.pad_token_id
+        else :
+            self.tokenizer = BertTokenizer.from_pretrained(bert_model, do_lower_case=True)
+       
         assert self.transform is not None
 
         if split in ['train', 'train_pseudo']:
@@ -407,6 +420,24 @@ class TransVGDataset(data.Dataset):
 
     def __len__(self):
         return len(self.images)
+
+    def _get_text_segment(self, text_segment, max_len=None):
+        if isinstance(text_segment, str):
+            tokens = self.tokenizer.tokenize(text_segment)
+        else:
+            tokens = text_segment[:]
+        if len(tokens) == 0:
+            raise RuntimeError("The text segment should contains at least one tokens!")
+        if max_len is None:
+            max_len = self.num_max_bpe_tokens  # 设置最大长度
+
+        if len(tokens) > max_len - 2:
+            tokens = tokens[:max_len - 2]
+
+        tokens = [self.bos_token_id] + tokens[:] + [self.eos_token_id]
+        num_tokens = len(tokens)
+        padding_mask = [0] * num_tokens + [1] * (max_len - num_tokens)
+        return tokens + [self.pad_token_id] * (max_len - num_tokens), padding_mask, num_tokens
 
     def __getitem__(self, idx):
         img_file, img, phrase, bbox, bbox_ori, obj_mask = self.pull_item(idx)

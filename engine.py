@@ -22,7 +22,7 @@ from models.clip_mdetr import clip
 # TODO: 训练核心代码
 def train_one_epoch(args, model: torch.nn.Module, data_loader: Iterable,
                     optimizer: torch.optim.Optimizer, device: torch.device,
-                    epoch: int, max_norm: float = 0):
+                    epoch: int, max_norm: float = 0, start_steps: int = 0):
     # 设置模型在训练模式
     model.train()
     metric_logger = utils.MetricLogger(delimiter="  ")
@@ -32,8 +32,8 @@ def train_one_epoch(args, model: torch.nn.Module, data_loader: Iterable,
     training_states={
         'epoch':epoch,
     }
-    for batch in metric_logger.log_every(data_loader, print_freq, header):
-        if getattr(args, "old_dataloader", None) ==True:
+    for data_iter_step, batch in enumerate(metric_logger.log_every(data_loader, print_freq, header)):
+        if getattr(args, "old_dataloader", False):
             img_data, text_data, target = batch
             #如果有args.model_type 
             if getattr(args, "model_type", None) == "CLIP":
@@ -55,6 +55,15 @@ def train_one_epoch(args, model: torch.nn.Module, data_loader: Iterable,
             loss_dict = loss_utils.trans_vg_loss(args, output, target, obj_mask, text_eos, img_cls, visu_sim, seg_mask)
             losses = sum(loss_dict[k] for k in loss_dict.keys())
 
+        elif args.model_name == 'OneRef':
+            step = data_iter_step // args.update_freq
+            global_step = start_steps + step  # global training iteration
+            output, text_eos, visu_sim, seg_mask, mlm_loss, mlm_acc, mlm_sts_pred, mim_pred, mim_vts_pred = \
+            model(img_data.tensors, img_data.mask, text_data, global_step=global_step, training=True)
+            loss_dict = loss_utils.one_ref_loss(args, output, target, obj_mask, text_eos, visu_sim, seg_mask,
+                                            mlm_loss=mlm_loss)
+            losses = sum(loss_dict[k] for k in loss_dict.keys())
+            
         elif args.model_name =='HiVG':
             output, text_eos, img_cls, visu_sim, seg_mask = model(img_data, text_data)
             # The `loss_dict` is a dictionary that contains `l1_smooth` and `giou`.
@@ -76,6 +85,86 @@ def train_one_epoch(args, model: torch.nn.Module, data_loader: Iterable,
             losses = sum(loss_dict[k] for k in loss_dict.keys())
             # reduce losses over all GPUs for logging purposes
 
+        loss_dict_reduced = utils.reduce_dict(loss_dict)
+        loss_dict_reduced_unscaled = {k: v for k, v in loss_dict_reduced.items()}
+        losses_reduced_unscaled = sum(loss_dict_reduced_unscaled.values())
+        loss_value = losses_reduced_unscaled.item()
+
+        if not math.isfinite(loss_value):
+            print("Loss is {}, stopping training".format(loss_value))
+            print(loss_dict_reduced)
+            sys.exit(1)
+
+        optimizer.zero_grad()
+        losses.backward()
+        if max_norm > 0:  # The default value of max_norm is 0.
+            torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm)
+        optimizer.step()
+
+        metric_logger.update(loss=loss_value, **loss_dict_reduced_unscaled)
+        metric_logger.update(lr=optimizer.param_groups[0]["lr"])
+    # gather the stats from all processes
+    metric_logger.synchronize_between_processes()
+    print("Averaged stats:", metric_logger)
+    return {k: meter.global_avg for k, meter in metric_logger.meters.items()}
+
+"""
+   The core training code is implemented here, which alternately models MIM and MLM.
+   Implemented by Linhui Xiao.
+     2024-01-10
+"""
+def train_one_epoch_with_mrefm(args, model: torch.nn.Module, vqkd: torch.nn.Module, data_loader: Iterable,
+                               optimizer: torch.optim.Optimizer, device: torch.device,
+                               epoch: int, start_steps: int, max_norm: float = 0):
+    model.train()
+    metric_logger = utils.MetricLogger(delimiter="  ")
+    metric_logger.add_meter('lr', utils.SmoothedValue(window_size=1, fmt='{value:.6f}'))
+    header = 'Epoch: [{}]'.format(epoch)
+    print_freq = 11  # ori: 10
+
+    for data_iter_step, batch in enumerate(metric_logger.log_every(data_loader, print_freq, header)):
+        step = data_iter_step // args.update_freq
+        global_step = start_steps + step  # global training iteration
+
+        if global_step % 2 == 0:
+            enable_ref_mim = True
+            enable_ref_mlm = False
+        else:
+            enable_ref_mim = False
+            enable_ref_mlm = True
+
+        img_data, text_data, target, obj_mask, mim_img, mim_mask_pos, mim_vts_labels, mlm_sts_labels = batch
+        # copy to GPU
+        img_data = img_data.to(device)
+        target = target.to(device)
+        obj_mask = obj_mask.to(device)  # obj_mask shape:  torch.Size([96, 1, 224, 224])
+        mim_img = mim_img.to(device)  # non_blocking=True)
+        mim_mask_pos = mim_mask_pos.to(device)  # non_blocking=True)
+        mim_vts_labels = mim_vts_labels.to(device)  # torch.Size([64, 576, 4])
+        """ If the original text is passed in, uncomment out the following code. """
+        # text_data = text_data.to(device)
+
+        if enable_ref_mim:
+            with torch.no_grad():
+                # with torch.cuda.amp.autocast():
+                input_ids = vqkd.get_codebook_indices(mim_img)  # Tokenize the original image, torch.Size([24, 24, 24])
+                bool_masked_pos = mim_mask_pos.flatten(1).to(torch.bool)  # numpy to torch, torch.Size([24, 576])
+                mim_labels = input_ids[bool_masked_pos]  # Get the ID based on the mask, shape: torch.Size([5520]), 24*230=5520
+        else:
+            bool_masked_pos, mim_labels = None, None
+
+        # model forward
+        pred_box, contrastive_loss, visu_sim, seg_mask, mlm_loss, mlm_acc, mlm_sts_pred, mim_pred, mim_vts_pred = \
+            model(img_data.tensors, img_data.mask, text_data, global_step=global_step, mim_masked_pos=bool_masked_pos,
+                  obj_mask=obj_mask, enable_ref_mim=enable_ref_mim, enable_ref_mlm=enable_ref_mlm, training=True)
+        # The `loss_dict` is a dictionary that contains `l1_smooth` and `giou`.
+        loss_dict = loss_utils.one_ref_loss(args, pred_box, target, obj_mask, contrastive_loss, visu_sim, seg_mask,
+                                            mim_pred, mim_labels, mim_vts_pred, mim_vts_labels,
+                                            mlm_loss, mlm_sts_pred, mlm_sts_labels)
+
+        losses = sum(loss_dict[k] for k in loss_dict.keys())
+
+        # reduce losses over all GPUs for logging purposes
         loss_dict_reduced = utils.reduce_dict(loss_dict)
         loss_dict_reduced_unscaled = {k: v for k, v in loss_dict_reduced.items()}
         losses_reduced_unscaled = sum(loss_dict_reduced_unscaled.values())
@@ -258,9 +347,9 @@ def validate(args, model: torch.nn.Module, data_loader: Iterable, device: torch.
             miou, accu, mask_iou_list = eval_utils.trans_vg_eval_val(args, pred_boxes, target, seg_mask, tgt_mask)
             metric_logger.update_v2('mask seg miou', torch.mean(mask_iou_list), batch_size)
 
-        elif args.model_name == 'ONEREF':
+        elif args.model_name == 'OneRef':
             pred_box, seg_mask, img_cls, text_cls = model(img_data.tensors, img_data.mask, text_data)
-            miou, accu, mask_iou_list, I_list, U_list = eval_utils.trans_vg_eval_val(args, pred_box, target, seg_mask, tgt_mask)       
+            miou, accu, mask_iou_list, I_list, U_list = eval_utils.trans_vg_eval_val_oneref(args, pred_box, target, seg_mask, tgt_mask)       
             if mask_iou_list is not None:
                 metric_logger.update_v2('seg_miou', torch.mean(mask_iou_list), batch_size)
             if args.use_mask_loss:
@@ -331,7 +420,7 @@ def evaluate(args, model: torch.nn.Module, data_loader: Iterable, device: torch.
             pred_mask_list.append(seg_mask.cpu())
             gt_mask_list.append(tgt_mask.cpu())
 
-        elif args.model_name == 'ONEREF':
+        elif args.model_name == 'OneRef':
             output, seg_mask, img_cls, text_cls = model(img_data.tensors, img_data.mask, text_data)
             pred_mask_list.append(seg_mask.cpu())
             gt_mask_list.append(tgt_mask.cpu())
@@ -368,10 +457,10 @@ def evaluate(args, model: torch.nn.Module, data_loader: Iterable, device: torch.
             acc_mask_iou = torch.sum(mask_iou_list, dim=0)
             mask_result_tensor = torch.tensor([acc_mask_iou, total_num]).to(device)
     
-    elif args.model_name == 'ONEREF':
+    elif args.model_name == 'OneRef':
         gt_masks = torch.cat(gt_mask_list, dim=0)
         pred_masks = torch.cat(pred_mask_list, dim=0)
-        accu_num, iou, mask_iou_list, I_list, U_list = eval_utils.trans_vg_eval_test(args, pred_boxes, gt_boxes, pred_masks, gt_masks)
+        accu_num, iou, mask_iou_list, I_list, U_list = eval_utils.trans_vg_eval_test_oneref(args, pred_boxes, gt_boxes, pred_masks, gt_masks)
 
     elif args.model_name == 'HiVG':
         gt_masks = torch.cat(gt_mask_list, dim=0)
@@ -387,7 +476,7 @@ def evaluate(args, model: torch.nn.Module, data_loader: Iterable, device: torch.
 
     result_tensor = torch.tensor([accu_num, total_num]).to(device)
 
-    if getattr(args, "use_mask_loss", False) and args.model_name == 'ONEREF':
+    if getattr(args, "use_mask_loss", False) and args.model_name == 'OneRef':
         acc_mask_iou = torch.sum(mask_iou_list, dim=0)
         mask_result_tensor = torch.tensor([acc_mask_iou, total_num]).to(device)
 
@@ -430,11 +519,11 @@ def evaluate(args, model: torch.nn.Module, data_loader: Iterable, device: torch.
 
     torch.cuda.synchronize()
     dist.all_reduce(result_tensor)
-    if args.model_name in ['MMVG', 'ONEREF']:
+    if args.model_name in ['MMVG', 'OneRef']:
         if args.use_mask_loss:
             dist.all_reduce(mask_result_tensor)
 
-    if getattr(args, "use_mask_loss", False) and args.model_name == 'ONEREF':
+    if getattr(args, "use_mask_loss", False) and args.model_name == 'OneRef':
         seg_miou = float(mask_result_tensor[0]) / float(mask_result_tensor[1])
         print("segmentation mIoU: ", seg_miou)
         seg_oiou = float(torch.sum(I_list, dim=0)) / float(torch.sum(U_list, dim=0))
