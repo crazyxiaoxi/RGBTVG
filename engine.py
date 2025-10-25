@@ -241,12 +241,14 @@ def validate(args, model: torch.nn.Module, data_loader: Iterable, device: torch.
             img_data, text_data, target = batch
             if hasattr(args, "model_type") and args.model_type == "CLIP":
                 text_data = clip.tokenize(text_data).to(device)
+                batch_size = img_data.size(0)
             else :
                 text_data = text_data.to(device)
+                batch_size = img_data.size(0)
         else: 
             img_data, text_data, target, tgt_mask = batch
             tgt_mask = tgt_mask.to(device)
-        batch_size = img_data.tensors.size(0)
+            batch_size = img_data.tensors.size(0)
         # copy to GPU
         img_data = img_data.to(device)
         target = target.to(device)
@@ -312,14 +314,15 @@ def evaluate(args, model: torch.nn.Module, data_loader: Iterable, device: torch.
             img_data, text_data, target = batch
             if hasattr(args, "model_type") and args.model_type == "CLIP":
                 text_data = clip.tokenize(text_data).to(device)
+                batch_size = img_data.size(0)
             else :
                 text_data = text_data.to(device)
+                batch_size = img_data.tensors.size(0)
         else:
             img_data, text_data, target, tgt_mask = batch
             # tex_data = text_data.to(device)
             tgt_mask = tgt_mask.to(device)
-
-        batch_size = img_data.tensors.size(0)
+            batch_size = img_data.tensors.size(0)
         # copy to GPU
         img_data = img_data.to(device)
         target = target.to(device)

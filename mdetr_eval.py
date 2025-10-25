@@ -201,10 +201,12 @@ def main(args):
     
     batch_sampler_test = torch.utils.data.BatchSampler(
         sampler_test, args.batch_size, drop_last=False)
-
-    data_loader_test = DataLoader(dataset_test, args.batch_size, sampler=sampler_test,
-                                 drop_last=False, collate_fn=utils.collate_fn, num_workers=args.num_workers)
-
+    if args.model_type == 'CLIP':
+        data_loader_test = DataLoader(dataset_test, args.batch_size, sampler=sampler_test,
+                                    drop_last=False, collate_fn=utils.collate_fn_clip, num_workers=args.num_workers)
+    else:
+        data_loader_test = DataLoader(dataset_test, batch_sampler=batch_sampler_test,
+                                    drop_last=False, collate_fn=utils.collate_fn, num_workers=args.num_workers)
     checkpoint = torch.load(args.eval_model, map_location='cpu')
     model_without_ddp.load_state_dict(checkpoint['model'])
 

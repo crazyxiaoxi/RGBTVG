@@ -13,7 +13,7 @@ export CUDADEVICES
 export EPOCHS
 echo "Start MDETR training with IMGSIZE=$IMGSIZE BATCHSIZE=$BATCHSIZE CUDA=$CUDADEVICES MODALITY=$MODALITY"
 
-mkdir -p logs/mdetr/$MODALITY
+mkdir -p logs/mdetr_clip/$MODALITY
 
 echo "===== Start FLIR training ====="
 stdbuf -oL -eL bash ./script_train/MDETR_clip/rgbt_flir/mdetr_single_dataset_flir_train_and_eval_full_sup.sh 2>&1 | tee logs/mdetr_clip/$MODALITY/flir_train.log

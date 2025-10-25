@@ -77,8 +77,8 @@ evaluate() {
         --modality $MODALITY
 }
 
-# evaluate "val"
-# evaluate "test"
-# evaluate "testA"
-# evaluate "testB"
+evaluate "val"
+evaluate "test"
+evaluate "testA"
+evaluate "testB"
 evaluate "testC"

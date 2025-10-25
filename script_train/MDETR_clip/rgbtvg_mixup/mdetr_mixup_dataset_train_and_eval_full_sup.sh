@@ -33,7 +33,6 @@ OUTPUT_DIR="./output_training/MDETR_clip_$MODALITY/$DATA_SET"
     --aug_scale \
     --aug_translate \
     --backbone resnet50 \
-    --detr_model ../dataset_and_pretrain_model/pretrain_model/pretrained_weights/Detr/detr-r50.pth \
     --bert_enc_num 12 \
     --detr_enc_num 6 \
     --dataset $DATA_SET \

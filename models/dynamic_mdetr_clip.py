@@ -19,7 +19,6 @@ class DynamicMDETR(nn.Module):
     def __init__(self, args):
         super(DynamicMDETR, self).__init__()
         hidden_dim = args.vl_hidden_dim
-        print("Using hidden_dim:!!!!!!!!!!!!!!!", hidden_dim)
         divisor = 16 if args.dilation else 32
 
         # for vit-B-16
