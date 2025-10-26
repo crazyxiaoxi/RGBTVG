@@ -37,7 +37,7 @@ def train_one_epoch(args, model: torch.nn.Module, data_loader: Iterable,
             img_data, text_data, target = batch
             #如果有args.model_type 
             if getattr(args, "model_type", None) == "CLIP":
-                text_data = clip.tokenize(text_data).to(device)
+                text_data = clip.tokenize(text_data, truncate=True).to(device)
             else:
                 text_data = text_data.to(device)
         else: 

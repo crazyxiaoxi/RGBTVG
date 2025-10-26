@@ -337,7 +337,7 @@ def collate_fn_clip(raw_batch):
     img = torch.stack(raw_batch[0])
     img_data = img
     text_data = list(raw_batch[1])
-    bbox = torch.tensor(raw_batch[2])
+    bbox = torch.from_numpy(np.array(raw_batch[2])) 
     
     batch = [img_data, text_data, bbox]
 
