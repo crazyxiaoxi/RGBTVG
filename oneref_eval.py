@@ -31,6 +31,9 @@ os.environ["CUDA_VISIBLE_DEVICES"] = '7'
 
 def get_args_parser():
     parser = argparse.ArgumentParser('OneRef Args', add_help=False)
+    parser.add_argument('--model_name', type=str, default='OneRef', help='model name')
+    parser.add_argument('--modality', default='rgbt', type=str)
+    parser.add_argument('--old_dataloader', default=False, type=bool)
     parser.add_argument('--sup_type', default='full', type=str)
     parser.add_argument('--lr', default=1e-4, type=float)
     parser.add_argument('--lr_bert', default=1e-5, type=float)
@@ -175,7 +178,6 @@ def main(args):
     print('### INFO ### torch.backends.cudnn.benchmark = {}'.format(torch.backends.cudnn.benchmark))
 
     # If the suffix of the model does not include the task, then include the task name
-    print("!!!!I want model name",args.model)
     if not args.model.endswith(args.task):
         if args.task in ("flickr30k", "coco_retrieval"):
             model_config = "%s_retrieval" % args.model
