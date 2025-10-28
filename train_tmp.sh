@@ -1,9 +1,9 @@
 #!/bin/bash
 
 IMGSIZE=224
-BATCHSIZE=1
-CUDADEVICES=
-MODALITY='rgb'
+BATCHSIZE=24
+CUDADEVICES=5
+MODALITY='rgbt'
 EPOCHS=1
 echo -e "\n\n===================== 启动全部训练与测试 ====================="
 

@@ -95,7 +95,6 @@ def trans_vg_eval_test_from_clipvg(pred_boxes, gt_boxes):
     gt_boxes = xywh2xyxy(gt_boxes)
     iou = bbox_iou(pred_boxes, gt_boxes)
     accu_num = torch.sum(iou >= 0.5)
-
     return accu_num
 
 

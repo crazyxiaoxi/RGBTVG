@@ -133,7 +133,6 @@ class TextEncoder_modified(nn.Module):
 
         return x
 
-
 # TODO: We provide the last layer feature version benefit for the following researchers to perform ablation study.
 class CLIP_VG(nn.Module):
     def __init__(self, args):
@@ -143,11 +142,9 @@ class CLIP_VG(nn.Module):
             print("init CLIP ViT-B/16")
             self.clip, _ = clip.load(args, "ViT-B/16")
             self.patch_size = 16
-        for parameter in self.clip.parameters():
-            parameter.requires_grad_(False)
-        hidden_dim = args.vl_hidden_dim
         self.imsize = args.imsize
-        if args.modality == "rgbt":
+        hidden_dim = args.vl_hidden_dim
+        if args.modality=='rgbt':
             self.visu_proj = nn.Linear(512*2, hidden_dim)
         else:
             self.visu_proj = nn.Linear(512, hidden_dim)
@@ -169,28 +166,39 @@ class CLIP_VG(nn.Module):
         return image_tensors, texts_tensors
 
     def get_masks(self, images: NestedTensor, texts: NestedTensor):
-        torch_resize = Resize([int(self.imsize / self.patch_size), int(self.imsize / self.patch_size)])
+        # torch_resize = Resize([14, 14])
+        torch_resize = Resize([int(self.imsize / self.patch_size), int(self.imsize / self.patch_size)])  # 14 * 14 = 196， or， 16 * 16 = 256
         visu_masks = torch_resize(images.mask)
         visu_masks = visu_masks.to(torch.bool)
-        visu_masks = visu_masks.flatten(1)
-        text_masks = texts.mask.to(torch.bool)
-        text_masks = ~text_masks
-        text_masks = text_masks.flatten(1)
-        assert text_masks is not None
+        visu_masks = visu_masks.flatten(1)  # visu_mask：B*L, torch.Size([B, 196])
+        # text mask follow bert process
+        # text_masks = texts.mask.to(torch.bool)
+        # text_masks = ~text_masks
+        # text_masks = text_masks.flatten(1)
+        # assert text_masks is not None
 
-        return visu_masks, text_masks
+        return visu_masks
 
+    def encode_text(self, text_data, device=None):
+        text_tensors = clip.tokenize(text_data, context_length=77, truncate=True).to(device)  # 4 * 77
+        text_mask = text_tensors.eq(0).bool()  # 4 * 77, The ones that need masking are 1.
+        return text_tensors, text_mask
     def forward(self, img_data, text_data):
-        if self.args.modality == "rgbt":
+        if self.args.modality =="rgbt":
             image_tensors_ir=img_data.tensors[:,3:,:,:].repeat(1,3,1,1)
+            img_data_ir_mask=img_data.mask
+            img_data_ir = NestedTensor(image_tensors_ir,img_data_ir_mask)
             img_data.tensors=img_data.tensors[:,:3,:,:]
-            image_features_ir = self.clip.encode_image(image_tensors_ir) 
+            image_features_ir = self.clip.encode_image(image_tensors_ir)  # B * 197 * 512
         batch_size = img_data.tensors.shape[0]
-        image_tensors, text_tensors = self.tensorize_inputs(img_data, text_data)
+        image_tensors = img_data.tensors
+        text_tensors, text_mask = self.encode_text(text_data, img_data.tensors.device) # 4 * 77
+        # image_tensors, text_tensors = self.tensorize_inputs(img_data, text_data)
         image_features = self.clip.encode_image(image_tensors)  # B * 197 * 512
         text_features = self.clip.encode_text(text_tensors)  # B * 77 * 512
-        if self.args.modality == "rgbt":
-            visu_src = self.visu_proj(torch.cat([image_features,image_features_ir],dim=2).float())# B * 197 * 1024
+
+        if self.args.modality =="rgbt":
+            visu_src = self.visu_proj(torch.cat([image_features,image_features_ir],dim=2).float())
         else:
             visu_src = self.visu_proj(image_features.float())
         text_src = self.text_proj(text_features.float())
@@ -198,7 +206,7 @@ class CLIP_VG(nn.Module):
         text_src = text_src.permute(1, 0, 2)  # 77 * 4 * 512
         tgt_src = self.reg_token.weight.unsqueeze(1).repeat(1, batch_size, 1)  # 1 * B * hidden_dim
         vl_src = torch.cat([tgt_src, text_src, visu_src], dim=0)
-        visu_mask, text_mask = self.get_masks(img_data, text_data)
+        visu_mask = self.get_masks(img_data, text_data)
         tgt_mask = torch.zeros((batch_size, 1)).to(tgt_src.device).to(torch.bool)
         cls_mask = torch.zeros((batch_size, 1)).to(tgt_src.device).to(torch.bool)
         vl_mask = torch.cat([tgt_mask, text_mask, cls_mask, visu_mask], dim=1)

@@ -305,7 +305,8 @@ class TransVGDataset(data.Dataset):
             image_size = []
             bbox_xywh = bbox.copy()
         elif str(self.dataset)[:6] == 'rgbtvg':  # rgbtvg
-            img_file, img_size, bbox, phrase, lighting,scale_cls = self.images[idx]
+            # img_file, img_size, bbox, phrase, lighting, scale_cls, occlusion, scene, weather, crowded= self.images[idx]
+            img_file, img_size, bbox, phrase, lighting, scale_cls = self.images[idx]
             if isinstance(img_size, dict):
                 image_size = [img_size["height"], img_size["width"]]
             obj_mask = None

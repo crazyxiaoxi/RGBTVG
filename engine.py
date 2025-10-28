@@ -333,7 +333,7 @@ def validate(args, model: torch.nn.Module, data_loader: Iterable, device: torch.
                 batch_size = img_data.size(0)
             else :
                 text_data = text_data.to(device)
-                batch_size = img_data.size(0)
+                batch_size = img_data.tensors.size(0)
         else: 
             img_data, text_data, target, tgt_mask = batch
             tgt_mask = tgt_mask.to(device)
