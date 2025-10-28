@@ -369,7 +369,7 @@ def validate(args, model: torch.nn.Module, data_loader: Iterable, device: torch.
             miou, accu = eval_utils.trans_vg_eval_val_from_clipvg(pred_boxes, target)
         
         metric_logger.update_v2('miou', torch.mean(miou), batch_size)
-        if getattr(args, 'use_mask_loss', False):
+        if getattr(args, 'use_mask_loss', False) and ('OneRef' in args.model_name):
             metric_logger.update_v2('accu', torch.mean(mask_iou_list), batch_size)
         else:
             metric_logger.update_v2('accu', accu, batch_size)
@@ -391,7 +391,7 @@ class UnNormalize(object):
 @torch.no_grad()
 def evaluate(args, model: torch.nn.Module, data_loader: Iterable, device: torch.device):
     model.eval()
-    unorm = UnNormalize(mean=(0.485, 0.456, 0.406), std=(0.229, 0.224, 0.225))
+
     pred_box_list = []
     gt_box_list = []
     text_list = []
@@ -467,10 +467,7 @@ def evaluate(args, model: torch.nn.Module, data_loader: Iterable, device: torch.
         gt_masks = torch.cat(gt_mask_list, dim=0)
         pred_masks = torch.cat(pred_mask_list, dim=0)
         accu_num, iou, mask_iou_list = eval_utils.trans_vg_eval_test(args, pred_boxes, gt_boxes, pred_masks, gt_masks)
-        if args.use_mask_loss:
-            # It is work only used for referring image segmentation task and enable use args.use_seg_mask
-            acc_mask_iou = torch.sum(mask_iou_list, dim=0)
-            mask_result_tensor = torch.tensor([acc_mask_iou, total_num]).to(device)
+
 
     elif args.model_name in ['CLIP_VG', 'TransVG', 'QRNet', 'MDETR' ,'MMCA']:
         accu_num = eval_utils.trans_vg_eval_test_from_clipvg(pred_boxes, gt_boxes)
@@ -523,12 +520,15 @@ def evaluate(args, model: torch.nn.Module, data_loader: Iterable, device: torch.
     if getattr(args, "use_mask_loss", False):
         dist.all_reduce(mask_result_tensor)
 
-    if getattr(args, "use_mask_loss", False):
+    if getattr(args, "use_mask_loss", False) and ('OneRef' in args.model_name):
         seg_miou = float(mask_result_tensor[0]) / float(mask_result_tensor[1])
         print("segmentation mIoU: ", seg_miou)
         seg_oiou = float(torch.sum(I_list, dim=0)) / float(torch.sum(U_list, dim=0))
         print("segmentation oIoU: ", seg_oiou)
         return seg_miou
+
+    if getattr(args, "use_mask_loss", False) and ('HiVG' in args.model_name):
+        miou = float(mask_result_tensor[0]) / float(mask_result_tensor[1])
 
     accuracy = float(result_tensor[0]) / float(result_tensor[1])
     print("accuracy2: ", accuracy)

@@ -18,8 +18,9 @@ import math
 
 
 class Modified_CLIPVisionEmbeddings(nn.Module):
-    def __init__(self, clip_embed):
+    def __init__(self,args, clip_embed):
         super().__init__()
+        self.args = args
         self.config = clip_embed.config
         self.embed_dim = clip_embed.embed_dim
         self.image_size = clip_embed.image_size
@@ -32,7 +33,8 @@ class Modified_CLIPVisionEmbeddings(nn.Module):
         self.register_buffer("position_ids", torch.arange(self.num_positions).expand((1, -1)))
 
     def forward(self, pixel_values: torch.FloatTensor) -> torch.Tensor:
-        batch_size = pixel_values.shape[0]  # B C H W
+
+        batch_size = pixel_values.shape[0]  # B C H W 
         patch_embeds = self.patch_embedding(pixel_values)  # shape = [*, width, grid, grid], B 768 H/16 W/16
         h, w = patch_embeds.shape[2], patch_embeds.shape[3]
         patch_embeds = patch_embeds.flatten(2).transpose(1, 2)  # B L H
@@ -137,13 +139,16 @@ class CLIP_Cross_Attention(nn.Module):
         self.scale = self.head_dim**-0.5
         self.dropout = config.attention_dropout
 
-        self.k_proj = nn.Linear(self.embed_dim, self.embed_dim)
-        self.v_proj = nn.Linear(self.embed_dim, self.embed_dim)
+        self.k_proj = nn.Linear(self.embed_dim, self.embed_dim)    
+        self.v_proj = nn.Linear(self.embed_dim, self.embed_dim) 
         self.q_proj = nn.Linear(self.embed_dim, self.embed_dim)
         self.out_proj = nn.Linear(self.embed_dim, self.embed_dim)
 
     def _shape(self, tensor: torch.Tensor, seq_len: int, bsz: int):
+
+        # print(torch.equal(aa.flatten(), tensor.flatten()))
         return tensor.view(bsz, seq_len, self.num_heads, self.head_dim).transpose(1, 2).contiguous()
+    
 
     def forward(
         self,
@@ -158,13 +163,17 @@ class CLIP_Cross_Attention(nn.Module):
         bsz, tgt_len, embed_dim = hidden_states.size()
 
         # get query proj
+
         query_states = self.q_proj(hidden_states) * self.scale
-        key_states = self._shape(self.k_proj(text_states), -1, bsz)
-        value_states = self._shape(self.v_proj(text_states), -1, bsz)
+        query_states = self._shape(query_states, -1, bsz)  #torch.Size([32, 12, 197, 64])
+
+        key_states = self._shape(self.k_proj(text_states).transpose(0,1), -1, bsz) #torch.Size([77, 32, 768])->torch.Size([32, 12, 77, 64])
+        # todo检查self._shape
+        value_states = self._shape(self.v_proj(text_states).transpose(0,1), -1, bsz)
 
         proj_shape = (bsz * self.num_heads, -1, self.head_dim)
-        query_states = self._shape(query_states, tgt_len, bsz).view(*proj_shape)
-        key_states = key_states.view(*proj_shape)
+        query_states = query_states.view(*proj_shape) #torch.Size([32*12, 197, 64])
+        key_states = key_states.view(*proj_shape)     #torch.Size([32*12, 77, 64])
         value_states = value_states.view(*proj_shape)
 
         src_len = key_states.size(1)
@@ -192,24 +201,24 @@ class CLIP_Cross_Attention(nn.Module):
                     f"Attention mask should be of size {(bsz, 1, tgt_len, src_len)}, but is {attention_mask.size()}"
                 )
             attn_weights = attn_weights.view(bsz, self.num_heads, tgt_len, src_len) + attention_mask
-            attn_weights = attn_weights.view(bsz * self.num_heads, tgt_len, src_len)
-
+            attn_weights = attn_weights.view(bsz * self.num_heads, tgt_len, src_len) 
+        # import pdb; pdb.set_trace()
         attn_weights = nn.functional.softmax(attn_weights, dim=-1)
-
+   
         if output_attentions:
             # this operation is a bit akward, but it's required to
             # make sure that attn_weights keeps its gradient.
             # In order to do so, attn_weights have to reshaped
             # twice and have to be reused in the following
-            attn_weights_reshaped = attn_weights.view(bsz, self.num_heads, tgt_len, src_len)
+            attn_weights_reshaped = attn_weights.view(bsz, self.num_heads, tgt_len, src_len) 
             attn_weights = attn_weights_reshaped.view(bsz * self.num_heads, tgt_len, src_len)
         else:
             attn_weights_reshaped = None
 
         attn_probs = nn.functional.dropout(attn_weights, p=self.dropout, training=self.training)
-
+  
         attn_output = torch.bmm(attn_probs, value_states)
-
+   
         if attn_output.size() != (bsz * self.num_heads, tgt_len, self.head_dim):
             raise ValueError(
                 f"`attn_output` should be of size {(bsz, self.num_heads, tgt_len, self.head_dim)}, but is"
@@ -220,8 +229,8 @@ class CLIP_Cross_Attention(nn.Module):
         attn_output = attn_output.transpose(1, 2)
         attn_output = attn_output.reshape(bsz, tgt_len, embed_dim)
 
-        attn_output = self.out_proj(attn_output)
 
+        attn_output = self.out_proj(attn_output)
         return attn_output, attn_weights_reshaped
 
 
@@ -248,6 +257,7 @@ class CLIPAttention(nn.Module):
         self.out_proj = nn.Linear(self.embed_dim, self.embed_dim)
 
     def _shape(self, tensor: torch.Tensor, seq_len: int, bsz: int):
+
         return tensor.view(bsz, seq_len, self.num_heads, self.head_dim).transpose(1, 2).contiguous()
 
     def forward(
@@ -366,15 +376,6 @@ class TOKEN_MLP(nn.Module):
 
 
 class CLIPEncoderLayer_with_Crossmodal_Bridge(nn.Module):
-    # def __init__(self, config: CLIPConfig):
-    #     super().__init__()
-    #     self.embed_dim = config.hidden_size
-    #     self.self_attn = CLIPAttention(config)
-    #     self.cross_attn = CLIP_Cross_Attention(config)
-    #
-    #     self.layer_norm1 = nn.LayerNorm(self.embed_dim, eps=config.layer_norm_eps)
-    #     self.mlp = CLIPMLP(config)
-    #     self.layer_norm2 = nn.LayerNorm(self.embed_dim, eps=config.layer_norm_eps)
 
     def __init__(self, args, i, clip_encoder_layer, config: CLIPConfig, adapt_layer, extract_text_layer, text_config):
         super().__init__()
@@ -417,8 +418,8 @@ class CLIPEncoderLayer_with_Crossmodal_Bridge(nn.Module):
                 returned tensors for more detail.
         """
         residual = hidden_states
-
         hidden_states = self.layer_norm1(hidden_states)
+
         hidden_states, attn_weights = self.self_attn(
             hidden_states=hidden_states,
             attention_mask=attention_mask,
@@ -426,7 +427,6 @@ class CLIPEncoderLayer_with_Crossmodal_Bridge(nn.Module):
             output_attentions=output_attentions,
         )
         hidden_states = residual + hidden_states
-
         """ Multi-layer Adaptive Cross-modal Bridge """
         if layer in adapt_layer:
             residual = hidden_states
@@ -436,15 +436,15 @@ class CLIPEncoderLayer_with_Crossmodal_Bridge(nn.Module):
                 for i, embed_layer in enumerate(self.cross_adaptive_weights):
                     adaptive_weights = torch.mul(embed_layer.weight.unsqueeze(0).repeat(text_states[i].shape[0], 1, 1),
                                                  text_states[i].to(hidden_states.dtype))
+
                     adpt_text_state = adaptive_weights + text_states[i].to(hidden_states.dtype)
                     adpt_text_states.append(adpt_text_state)
                 adpt_text_states = torch.cat(adpt_text_states, dim=-1).to(hidden_states.dtype)
-
                 adpt_text_states = self.cross_gate(adpt_text_states)
                 adpt_text_states = adpt_text_states.permute(1, 0, 2)  # B L H --> L B H
+
             else:
                 adpt_text_states = text_states[-1].to(hidden_states.dtype).permute(1, 0, 2)
-
             hidden_states, attn_weights = self.cross_attn(
                 hidden_states=hidden_states,
                 text_states=adpt_text_states,
@@ -452,15 +452,18 @@ class CLIPEncoderLayer_with_Crossmodal_Bridge(nn.Module):
                 causal_attention_mask=causal_attention_mask,
                 output_attentions=output_attentions,
             )
+
+             
             hidden_states = self.cross_mlp(hidden_states)
+    
             hidden_states = residual + hidden_states
 
         residual = hidden_states
         hidden_states = self.layer_norm2(hidden_states)
         hidden_states = self.mlp(hidden_states)
         hidden_states = residual + hidden_states
-
         outputs = (hidden_states,)
+
 
         if output_attentions:
             outputs += (attn_weights,)
@@ -585,7 +588,7 @@ class CLIP_Vision_Model_with_Crossmodal_Bridge(nn.Module):
     def __init__(self, args, clip_visu_model, adapt_layer, extract_text_layer, text_config):
         super().__init__()
         self.config = clip_visu_model.config
-        self.embeddings = Modified_CLIPVisionEmbeddings(clip_visu_model.embeddings)
+        self.embeddings = Modified_CLIPVisionEmbeddings(args, clip_visu_model.embeddings)
         self.pre_layrnorm = clip_visu_model.pre_layrnorm  # 原版代码拼错了
         self.encoder = CLIPEncoder_with_Crossmodal_Bridge(args, clip_visu_model.encoder, adapt_layer, extract_text_layer,
                                                           text_config)
@@ -651,8 +654,8 @@ class CLIP_Vision_Model_with_Crossmodal_Bridge(nn.Module):
 class HiVG(nn.Module):
     def __init__(self, args):
         super(HiVG, self).__init__()
-        print("init HiVG model...")
         self.args = args
+        print("init HiVG model...")
         if (args.model == "ViT-L/14-336"):
             print("init CLIP ViT-L/14-336")
             self.clip = CLIPModel.from_pretrained("/home/shared/pretrain_model/pretrained_weights/CLIP/clip-vit-large-patch14-336")
@@ -673,6 +676,7 @@ class HiVG(nn.Module):
             self.patch_size = 32
         else:  # default base model
             print("init CLIP ViT-B/16")
+            # self.clip = CLIPModel.from_pretrained("/home/shared/pretrain_model/pretrained_weights/CLIP/clip-vit-base-patch16")
             self.clip = CLIPModel.from_pretrained("../dataset_and_pretrain_model/pretrain_model/pretrained_weights/CLIP/clip-vit-base-patch16")
             """
              Note that there is no mistake here. Note that [1, 4, 8, 12], [0, 3, 7, 11] are the same layer.
@@ -682,7 +686,6 @@ class HiVG(nn.Module):
             self.extract_vision_layer = [1, 4, 8, 12]
             self.adapt_layer = [0, 3, 7, 11]
             self.patch_size = 16
-
         # set extract_text_layer
         self.mixup_pretrain = args.mixup_pretrain
         if self.mixup_pretrain:
@@ -705,8 +708,8 @@ class HiVG(nn.Module):
 
         for parameter in self.clip.parameters():
             parameter.requires_grad_(False)
-
         print("adapt_layer: ", self.adapt_layer)
+
         self.clip.vision_model = CLIP_Vision_Model_with_Crossmodal_Bridge(args, self.clip.vision_model,
                                                                           self.adapt_layer, self.extract_text_layer,
                                                                           self.clip.text_model.config)
@@ -727,8 +730,8 @@ class HiVG(nn.Module):
                         or "cross_adaptive_weights" in str(name).split("."):
                     print("param name: ", name)
                     param.requires_grad_(True)
-            self.clip.print_trainable_parameters()
 
+            self.clip.print_trainable_parameters()
         self.hidden_dim = self.clip.projection_dim  # base model 512，large model 768
         self.imsize = args.imsize
         clip_visu_hidden_dim = self.clip.vision_model.config.hidden_size  # 768
@@ -741,10 +744,9 @@ class HiVG(nn.Module):
         # divisor = 16
         self.num_visu_token = int((args.imsize / self.patch_size) ** 2)
         self.num_text_token = args.max_query_len
-        if args.modality == "rgbt":
-            num_total = self.num_visu_token*2 + 1 + self.num_text_token + 1 
-        else:
-            num_total = self.num_visu_token + 1 + self.num_text_token + 1  # v token + [cls]token + t token + [REG]token
+        num_total = self.num_visu_token + 1 + self.num_text_token + 1  # v token + [cls]token + t token + [REG]token
+        if args.modality=='rgbt':
+            num_total = self.num_visu_token*2 + 1 + self.num_text_token + 1  # v token + [cls]token + t token + [REG]token
         self.vl_pos_embed = nn.Embedding(num_total, self.hidden_dim)
 
         self.vl_transformer = build_vl_transformer(args)
@@ -753,9 +755,14 @@ class HiVG(nn.Module):
         self.reg_pos_embed = nn.Embedding(1, self.hidden_dim)
         self.condition_text_pos_embed = nn.Embedding(self.num_text_token, clip_visu_hidden_dim)
         self.ml_visual_projection = nn.Linear(len(self.extract_vision_layer) * self.clip.vision_model.config.hidden_size,
-                                              self.hidden_dim)
+                                            self.hidden_dim)
         self.ml_visual_projection.weight = nn.Parameter(torch.cat([self.clip.visual_projection.weight for i
-                                                                   in range(len(self.extract_vision_layer))], dim=1))
+                                                                in range(len(self.extract_vision_layer))], dim=1))
+        # if args.modality=='rgbt':
+        #     self.ml_visual_projection_ir = nn.Linear(len(self.extract_vision_layer) * self.clip.vision_model.config.hidden_size,
+        #                                       self.hidden_dim)
+        #     self.ml_visual_projection_ir.weight = nn.Parameter(self.ml_visual_projection.weight.clone())
+              
 
         self.visu_token_norm = nn.LayerNorm(self.hidden_dim, eps=1e-05)  # 512, eps=1e-05
         self.visu_token_mlp = TOKEN_MLP(self.hidden_dim, 3072)  # 3072
@@ -769,7 +776,6 @@ class HiVG(nn.Module):
                                             padding=(0, 0), output_padding=(0, 0), bias=False)  # bias=False
         self.seg_conv3 = nn.ConvTranspose2d(in_channels=hidden_dim, out_channels=hidden_dim, kernel_size=(2, 2), stride=(2, 2),
                                             padding=(0, 0), output_padding=(0, 0), bias=False)  # bias=False
-
     def set_HiLoRA(self, args):
         open_lora = True
         close_lora_parameter_update = False
@@ -780,6 +786,8 @@ class HiVG(nn.Module):
             target_modules = ["q_proj", "k_proj", "v_proj", "out_proj", "fc_in", "fc_out", "wte"]
             peft_config = LoraConfig(target_modules=target_modules, inference_mode=False, r=32, lora_alpha=16,
                                      lora_dropout=0.1, bias='none')
+            # peft_config = AdaLoraConfig(target_modules=target_modules, inference_mode=False, r=8, lora_alpha=8,
+            #                          lora_dropout=0, bias='none')
 
             # lora stage 0 for MSCOCO debais
             self.clip = get_peft_model(self.clip, peft_config)
@@ -912,13 +920,16 @@ class HiVG(nn.Module):
         return text_tensors, text_mask
 
     def forward(self, img_data, text_data):
-        if self.args.modality == "rgbt":
+        # import pdb
+        # pdb.set_trace()
+        if self.args.modality =="rgbt":
             image_tensors_ir=img_data.tensors[:,3:,:,:].repeat(1,3,1,1)
             img_data_ir_mask=img_data.mask
             img_data_ir = NestedTensor(image_tensors_ir,img_data_ir_mask)
             img_data.tensors=img_data.tensors[:,:3,:,:]
         batch_size = img_data.tensors.shape[0]  # 得到batch_size
         image_tensors = img_data.tensors
+        
         text_tensors, text_mask = self.encode_text(text_data, img_data.tensors.device)
 
         clip_text_features = self.clip.text_model(text_tensors, output_attentions=True, output_hidden_states=True,
@@ -936,42 +947,55 @@ class HiVG(nn.Module):
         # target regression token
         reg_src = self.reg_token.weight.unsqueeze(0).repeat(batch_size, 1, 1)  # B * 1 * hidden_dim
 
+        # for i in range(13):
+        #     with open(f"./bs4_output_{i}.txt", "w") as f:
+        #         print(clip_image_features["hidden_states"][i][0],file=f)
+        #     f.close()
+        
         clip_image_features = self.clip.vision_model(self.adapt_layer, ml_text_features, reg_src, image_tensors,
                                                      output_attentions=True, output_hidden_states=True,
                                                      return_dict=True)  # B * 197 * 512
-        attention_map = clip_image_features["attentions"]  # tuple, used for draw the attention map
+        # attention_map = clip_image_features["attentions"]  # tuple, used for draw the attention map
+
         ml_image_features = [clip_image_features["hidden_states"][i] for i in self.extract_vision_layer]
         img_cls_embed = self.clip.visual_projection(clip_image_features["pooler_output"])  # torch.Size([64, 512])
+
         ml_image_features = torch.cat(ml_image_features, dim=2)
         image_features = self.ml_visual_projection(ml_image_features)
         visu_src = self.visu_proj(image_features.float())  # (N*B)xC
-        visu_src = visu_src.permute(1, 0, 2)  # 197 * 4 * 512
-
         if self.args.modality =="rgbt":
             clip_image_features_ir = self.clip.vision_model(self.adapt_layer, ml_text_features, reg_src, image_tensors_ir,
                                                     output_attentions=True, output_hidden_states=True,
                                                     return_dict=True)  # B * 197 * 512
+            # attention_map_ir = clip_image_features["attentions"]  # tuple, used for draw the attention map
+
             ml_image_features_ir = [clip_image_features_ir["hidden_states"][i] for i in self.extract_vision_layer]
             img_cls_embed_ir = self.clip.visual_projection(clip_image_features_ir["pooler_output"])  # torch.Size([64, 512])
+
             ml_image_features_ir = torch.cat(ml_image_features_ir, dim=2)
+            # ml_image_features = torch.cat([ml_image_features,ml_image_features_ir], dim=2)
             image_features_ir = self.ml_visual_projection(ml_image_features_ir)
             visu_src_ir = self.visu_proj(image_features_ir.float())  # (N*B)xC
             visu_src_ir = visu_src_ir.permute(1, 0, 2)  # 197 * 4 * 512
 
         text_src = self.text_proj(text_features.float())  # B * 77 * 512
+
+        # permute BxLenxC to LenxBxC
+        visu_src = visu_src.permute(1, 0, 2)  # 197 * 4 * 512
         text_src = text_src.permute(1, 0, 2)  # 77 * 4 * 512
         reg_src = reg_src.permute(1, 0, 2)  # 1 * B * 512
-
         # mask
         reg_mask = torch.zeros((batch_size, 1)).to(reg_src.device).to(torch.bool)
         cls_mask = torch.zeros((batch_size, 1)).to(reg_src.device).to(torch.bool)
-        if self.args.modality == "rgbt":
+        #TODO ZTY
+        if self.args.modality == 'rgbt':
             vl_src = torch.cat([reg_src, visu_src, visu_src_ir[1:,:,:], text_src], dim=0)
             vl_mask = torch.cat([reg_mask, cls_mask, visu_mask,visu_mask, text_mask], dim=1)
         else:
             vl_src = torch.cat([reg_src, visu_src, text_src], dim=0)
             vl_mask = torch.cat([reg_mask, cls_mask, visu_mask, text_mask], dim=1)
 
+        
         vl_pos = self.vl_pos_embed.weight.unsqueeze(1).repeat(1, batch_size, 1)
 
         vg_hs = self.vl_transformer(vl_src, vl_mask, vl_pos)  # (1+L+N)xBxC
@@ -980,18 +1004,17 @@ class HiVG(nn.Module):
 
         # normalized features
         img_cls_embed = img_cls_embed / img_cls_embed.norm(p=2, dim=-1, keepdim=True)
+        text_eos_embed = text_eos_embed / text_eos_embed.norm(p=2, dim=-1, keepdim=True)
         if self.args.modality == 'rgbt':
             img_cls_embed_ir = img_cls_embed_ir / img_cls_embed_ir.norm(p=2, dim=-1, keepdim=True)
- 
-        text_eos_embed = text_eos_embed / text_eos_embed.norm(p=2, dim=-1, keepdim=True)
         # cosine similarity as logits
         logit_scale = self.clip.logit_scale.exp()
         logits_per_text = torch.matmul(text_eos_embed, img_cls_embed.t()) * logit_scale
-        logits_per_image = logits_per_text.t()
         if self.args.modality == 'rgbt':
             logits_per_text_ir = torch.matmul(text_eos_embed, img_cls_embed_ir.t()) * logit_scale
             logits_per_image_ir = logits_per_text_ir.t()
-
+        logits_per_image = logits_per_text.t()
+        
         # visual token align
         vg_hs_visu_features = vg_hs[2: 2 + self.num_visu_token].permute(1, 0, 2)  # B L H
         clip_last_layer_features = self.visu_token_mlp(self.visu_token_norm(vg_hs_visu_features))
@@ -1015,9 +1038,8 @@ class HiVG(nn.Module):
         seg_mask = seg_mask.sum(axis=-1, keepdim=False).unsqueeze(1)  # B 1 H W
         if self.args.modality == 'rgbt':
             return pred_box, logits_per_text, [logits_per_image,logits_per_image_ir] , visu_token_similarity, seg_mask
-        else:
-            return pred_box, logits_per_text, logits_per_image, visu_token_similarity, seg_mask
-
+        else: 
+            return pred_box, logits_per_text, logits_per_image , visu_token_similarity, seg_mask
 
 class MLP(nn.Module):
     """ Very simple multi-layer perceptron (also called FFN)"""
