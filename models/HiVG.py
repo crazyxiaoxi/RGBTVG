@@ -159,8 +159,8 @@ class CLIP_Cross_Attention(nn.Module):
 
         # get query proj
         query_states = self.q_proj(hidden_states) * self.scale
-        key_states = self._shape(self.k_proj(text_states), -1, bsz)
-        value_states = self._shape(self.v_proj(text_states), -1, bsz)
+        key_states = self._shape(self.k_proj(text_states).transpose(0,1), -1, bsz)
+        value_states = self._shape(self.v_proj(text_states).transpose(0,1), -1, bsz)
 
         proj_shape = (bsz * self.num_heads, -1, self.head_dim)
         query_states = self._shape(query_states, tgt_len, bsz).view(*proj_shape)
