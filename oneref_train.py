@@ -15,7 +15,7 @@ from torch.utils.data import DataLoader, DistributedSampler
 import utils.misc as utils
 # from models import build_model
 from datasets import build_dataset
-from engine import train_one_epoch, train_one_epoch_with_mrefm, validate
+from engine import train_one_epoch_oneref, train_one_epoch_with_mrefm, validate
 
 """ DO NOT delete the below OneRef model import code ! """
 from timm.models import create_model
@@ -326,7 +326,7 @@ def main(args):
         start_ep_time = time.time()
         if args.distributed:
             sampler_train.set_epoch(epoch)
-        train_stats = train_one_epoch(args, model, data_loader_train, optimizer, device, epoch,
+        train_stats = train_one_epoch_oneref(args, model, data_loader_train, optimizer, device, epoch,
                                       epoch * num_training_steps_per_epoch, args.clip_max_norm)
         lr_scheduler.step()
         val_stats = validate(args, model, data_loader_val, device)

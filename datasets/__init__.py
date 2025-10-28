@@ -192,7 +192,6 @@ def build_dataset(split, args):
                                            max_query_len=args.max_query_len,
                                            prompt_template=args.prompt)
         else:
-            print("!!!!!using TransVGDataset")
             return TransVGDataset(args,
                                 data_root=args.data_root,
                                 split_root=args.split_root,

@@ -16,10 +16,10 @@ echo "Start MDETR training with IMGSIZE=$IMGSIZE BATCHSIZE=$BATCHSIZE CUDA=$CUDA
 mkdir -p logs/mdetr_clip/$MODALITY
 
 echo "===== Start FLIR training ====="
-stdbuf -oL -eL bash ./script_train/MDETR_clip/rgbt_flir/mdetr_single_dataset_flir_train_and_eval_full_sup.sh 2>&1 | tee logs/mdetr_clip/$MODALITY/flir_train.log
+# stdbuf -oL -eL bash ./script_train/MDETR_clip/rgbt_flir/mdetr_single_dataset_flir_train_and_eval_full_sup.sh 2>&1 | tee logs/mdetr_clip/$MODALITY/flir_train.log
 
 echo "===== Start M3FD training ====="
-stdbuf -oL -eL bash ./script_train/MDETR_clip/rgbt_m3fd/mdetr_single_dataset_m3fd_train_and_eval_full_sup.sh 2>&1 | tee logs/mdetr_clip/$MODALITY/m3fd_train.log
+# stdbuf -oL -eL bash ./script_train/MDETR_clip/rgbt_m3fd/mdetr_single_dataset_m3fd_train_and_eval_full_sup.sh 2>&1 | tee logs/mdetr_clip/$MODALITY/m3fd_train.log
 
 echo "===== Start MFAD training ====="
 stdbuf -oL -eL bash ./script_train/MDETR_clip/rgbt_mfad/mdetr_single_dataset_mfad_train_and_eval_full_sup.sh 2>&1 | tee logs/mdetr_clip/$MODALITY/mfad_train.log

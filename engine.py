@@ -352,8 +352,6 @@ def validate(args, model: torch.nn.Module, data_loader: Iterable, device: torch.
             miou, accu, mask_iou_list, I_list, U_list = eval_utils.trans_vg_eval_val_oneref(args, pred_box, target, seg_mask, tgt_mask)       
             if mask_iou_list is not None:
                 metric_logger.update_v2('seg_miou', torch.mean(mask_iou_list), batch_size)
-            if args.use_mask_loss:
-                metric_logger.update_v2('accu_mask', torch.mean(mask_iou_list), batch_size)
 
 
         elif args.model_name == 'HiVG':
@@ -371,7 +369,10 @@ def validate(args, model: torch.nn.Module, data_loader: Iterable, device: torch.
             miou, accu = eval_utils.trans_vg_eval_val_from_clipvg(pred_boxes, target)
         
         metric_logger.update_v2('miou', torch.mean(miou), batch_size)
-        metric_logger.update_v2('accu', accu, batch_size)
+        if getattr(args, 'use_mask_loss', False):
+            metric_logger.update_v2('accu', torch.mean(mask_iou_list), batch_size)
+        else:
+            metric_logger.update_v2('accu', accu, batch_size)
 
     # gather the stats from all processes
     metric_logger.synchronize_between_processes()
@@ -476,7 +477,7 @@ def evaluate(args, model: torch.nn.Module, data_loader: Iterable, device: torch.
 
     result_tensor = torch.tensor([accu_num, total_num]).to(device)
 
-    if getattr(args, "use_mask_loss", False) and args.model_name == 'OneRef':
+    if getattr(args, "use_mask_loss", False):
         acc_mask_iou = torch.sum(mask_iou_list, dim=0)
         mask_result_tensor = torch.tensor([acc_mask_iou, total_num]).to(device)
 
@@ -519,11 +520,10 @@ def evaluate(args, model: torch.nn.Module, data_loader: Iterable, device: torch.
 
     torch.cuda.synchronize()
     dist.all_reduce(result_tensor)
-    if args.model_name in ['MMVG', 'OneRef']:
-        if args.use_mask_loss:
-            dist.all_reduce(mask_result_tensor)
+    if getattr(args, "use_mask_loss", False):
+        dist.all_reduce(mask_result_tensor)
 
-    if getattr(args, "use_mask_loss", False) and args.model_name == 'OneRef':
+    if getattr(args, "use_mask_loss", False):
         seg_miou = float(mask_result_tensor[0]) / float(mask_result_tensor[1])
         print("segmentation mIoU: ", seg_miou)
         seg_oiou = float(torch.sum(I_list, dim=0)) / float(torch.sum(U_list, dim=0))

@@ -2,7 +2,7 @@
 
 IMGSIZE=224
 BATCHSIZE=1
-CUDADEVICES=2
+CUDADEVICES=
 MODALITY='rgb'
 EPOCHS=1
 echo -e "\n\n===================== 启动全部训练与测试 ====================="

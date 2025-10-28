@@ -1,5 +1,5 @@
 #!/bin/bash
-echo -e "\n\n\n\n\n\n\n==================== mdetr m3fd ==========================="
+echo -e "\n\n\n\n\n\n\n==================== mdetr mfad ==========================="
 
 DATA_SET="rgbtvg_mfad"
 IMGSIZE=${IMGSIZE:-224}

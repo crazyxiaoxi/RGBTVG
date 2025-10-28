@@ -115,7 +115,6 @@ def trans_vg_eval_val_oneref(args, pred_boxes, gt_boxes, pred_mask=None, tgt_mas
     gt_boxes = xywh2xyxy(gt_boxes)
     iou = bbox_iou(pred_boxes, gt_boxes)
     accu = torch.sum(iou >= 0.5) / float(batch_size)
-
     if args.use_mask_loss:
         # ReLU needs to be applied before interpolation, otherwise it will affect the interpolation effect.
         pred_mask = (pred_mask.sigmoid() - torch.tensor(0.5)).relu()
@@ -135,7 +134,6 @@ def trans_vg_eval_test_oneref(args, pred_boxes, gt_boxes, pred_mask=None, tgt_ma
     gt_boxes = xywh2xyxy(gt_boxes)
     iou = bbox_iou(pred_boxes, gt_boxes)
     accu_num = torch.sum(iou >= 0.5)
-
     if args.use_mask_loss:
         # ReLU needs to be applied before interpolation, otherwise it will affect the interpolation effect.
         pred_mask = (pred_mask.sigmoid() - torch.tensor(0.5)).relu()
