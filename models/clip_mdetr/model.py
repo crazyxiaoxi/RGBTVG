@@ -441,7 +441,7 @@ def build_model(state_dict: dict):
 
     # for vit-B/16
     # image_resolution = 384
-    image_resolution = 640
+    image_resolution = 224
 
     # # for vit-L/14
     # image_resolution = 560

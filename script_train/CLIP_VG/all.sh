@@ -23,15 +23,15 @@ export DATASET
 echo "===== Start FLIR training ====="
 stdbuf -oL -eL bash ./script_train/CLIP_VG/single.sh 2>&1 | tee logs/clipvg/$MODALITY/$IMGSIZE"_"$BATCHSIZE"_flir.log"
 
-DATASET="rgbtvg_m3fd"
-export DATASET
-echo "===== Start M3FD training ====="
-stdbuf -oL -eL bash ./script_train/CLIP_VG/single.sh 2>&1 | tee logs/clipvg/$MODALITY/$IMGSIZE"_"$BATCHSIZE"_m3fd.log"
+# DATASET="rgbtvg_m3fd"
+# export DATASET
+# echo "===== Start M3FD training ====="
+# stdbuf -oL -eL bash ./script_train/CLIP_VG/single.sh 2>&1 | tee logs/clipvg/$MODALITY/$IMGSIZE"_"$BATCHSIZE"_m3fd.log"
 
-DATASET="rgbtvg_mfad"
-export DATASET
-echo "===== Start MFAD training ====="
-stdbuf -oL -eL bash ./script_train/CLIP_VG/single.sh 2>&1 | tee logs/clipvg/$MODALITY/$IMGSIZE"_"$BATCHSIZE"_mfad.log"
+# DATASET="rgbtvg_mfad"
+# export DATASET
+# echo "===== Start MFAD training ====="
+# stdbuf -oL -eL bash ./script_train/CLIP_VG/single.sh 2>&1 | tee logs/clipvg/$MODALITY/$IMGSIZE"_"$BATCHSIZE"_mfad.log"
 
-echo "===== Start MIXUP training ====="
-stdbuf -oL -eL bash ./script_train/CLIP_VG/mixup.sh 2>&1 | tee logs/clipvg/$MODALITY/$IMGSIZE"_"$BATCHSIZE"_mixup.log"
+# echo "===== Start MIXUP training ====="
+# stdbuf -oL -eL bash ./script_train/CLIP_VG/mixup.sh 2>&1 | tee logs/clipvg/$MODALITY/$IMGSIZE"_"$BATCHSIZE"_mixup.log"

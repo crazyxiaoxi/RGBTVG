@@ -22,7 +22,7 @@ SPLIT_ROOT="../dataset_and_pretrain_model/datasets/VG/ref_data_shuffled"
 EVAL_MODEL_PATH="./output_training/CLIP_VG_${IMGSIZE}_${MODALITY}/$DATA_SET/best_checkpoint.pth"
 OUTPUT_DIR="./output_training/CLIP_VG_${IMGSIZE}_${MODALITY}/$DATA_SET"
 # 训练参数
-TRAIN_ARGS=(--num_workers 4 --modality $MODALITY --batch_size $BATCHSIZE --imsize $IMGSIZE --epochs $EPOCHS --lr 0.00025 --lr_scheduler cosine --aug_crop --aug_scale --aug_translate --vl_hidden_dim 512 --max_query_len 77)
+TRAIN_ARGS=(--num_workers 4 --modality $MODALITY --batch_size $BATCHSIZE --imsize $IMGSIZE --epochs $EPOCHS --lr_bert 0.00001  cosine --aug_crop --aug_scale --aug_translate --vl_hidden_dim 512 --max_query_len 77)
 # 评估参数
 EVAL_ARGS=( --num_workers 4 --modality $MODALITY --batch_size $BATCHSIZE --imsize $IMGSIZE --max_query_len 77)
 # 评估函数

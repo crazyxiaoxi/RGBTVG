@@ -27,6 +27,7 @@ OUTPUT_DIR="./output_training/MDETR_clip_${IMGSIZE}_${MODALITY}/$DATA_SET"
     mdetr_train.py \
     --model_type CLIP \
     --batch_size $BATCHSIZE \
+    --imsize $IMGSIZE \
     --epochs $EPOCHS \
     --lr_bert 0.00001 \
     --aug_crop \
