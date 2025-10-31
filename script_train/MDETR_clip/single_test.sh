@@ -17,37 +17,37 @@ SPLIT_ROOT="../dataset_and_pretrain_model/datasets/VG/ref_data_shuffled"
 EVAL_MODEL_PATH="./output_training/MDETR_clip_$MODALITY/$DATA_SET/best_checkpoint.pth"
 OUTPUT_DIR="./output_training/MDETR_clip_$MODALITY/$DATA_SET"
 
-"${DIST_CMD[@]}" \
-    --master_port 28500 \
-    mdetr_train.py \
-    --model_type CLIP \
-    --batch_size $BATCHSIZE \
-    --imsize $IMGSIZE \
-    --epochs $EPOCHS \
-    --lr_bert 0.00001 \
-    --aug_crop \
-    --aug_scale \
-    --aug_translate \
-    --backbone resnet50 \
-    --bert_enc_num 12 \
-    --detr_enc_num 6 \
-    --dataset $DATA_SET \
-    --max_query_len 40 \
-    --output_dir $OUTPUT_DIR \
-    --stages 3 \
-    --vl_fusion_enc_layers 3 \
-    --uniform_learnable True \
-    --in_points 36 \
-    --lr 1e-4 \
-    --different_transformer True \
-    --lr_drop 60 \
-    --vl_dec_layers 1 \
-    --vl_enc_layers 1 \
-    --clip_max_norm 1.0 \
-    --data_root $DATA_ROOT \
-    --split_root $SPLIT_ROOT \
-    --model_name MDETR \
-    --modality $MODALITY
+# "${DIST_CMD[@]}" \
+#     --master_port 28500 \
+#     mdetr_train.py \
+#     --model_type CLIP \
+#     --batch_size $BATCHSIZE \
+#     --imsize $IMGSIZE \
+#     --epochs $EPOCHS \
+#     --lr_bert 0.00001 \
+#     --aug_crop \
+#     --aug_scale \
+#     --aug_translate \
+#     --backbone resnet50 \
+#     --bert_enc_num 12 \
+#     --detr_enc_num 6 \
+#     --dataset $DATA_SET \
+#     --max_query_len 40 \
+#     --output_dir $OUTPUT_DIR \
+#     --stages 3 \
+#     --vl_fusion_enc_layers 3 \
+#     --uniform_learnable True \
+#     --in_points 36 \
+#     --lr 1e-4 \
+#     --different_transformer True \
+#     --lr_drop 60 \
+#     --vl_dec_layers 1 \
+#     --vl_enc_layers 1 \
+#     --clip_max_norm 1.0 \
+#     --data_root $DATA_ROOT \
+#     --split_root $SPLIT_ROOT \
+#     --model_name MDETR \
+#     --modality $MODALITY
 
 evaluate() {
     local eval_set=$1

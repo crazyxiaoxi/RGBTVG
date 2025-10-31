@@ -39,8 +39,8 @@ class DynamicMDETR(nn.Module):
         self.text_proj = nn.Linear(self.textmodel.num_channels, hidden_dim)
 
         # Sampling relevant
-        self.visual_feature_map_h = 20
-        self.visual_feature_map_w = 20
+        self.visual_feature_map_h = 7
+        self.visual_feature_map_w = 7
         self.in_points = args.in_points
         self.stages = args.stages
 

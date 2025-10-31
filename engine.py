@@ -329,7 +329,7 @@ def validate(args, model: torch.nn.Module, data_loader: Iterable, device: torch.
         if hasattr(args, "old_dataloader") and args.old_dataloader:
             img_data, text_data, target = batch
             if hasattr(args, "model_type") and args.model_type == "CLIP":
-                text_data = clip.tokenize(text_data).to(device)
+                text_data = clip.tokenize(text_data, truncate=True).to(device)
                 batch_size = img_data.size(0)
             else :
                 text_data = text_data.to(device)
@@ -403,7 +403,7 @@ def evaluate(args, model: torch.nn.Module, data_loader: Iterable, device: torch.
         if hasattr(args, "old_dataloader") and args.old_dataloader:
             img_data, text_data, target = batch
             if hasattr(args, "model_type") and args.model_type == "CLIP":
-                text_data = clip.tokenize(text_data).to(device)
+                text_data = clip.tokenize(text_data, truncate=True).to(device)
                 batch_size = img_data.size(0)
             else :
                 text_data = text_data.to(device)

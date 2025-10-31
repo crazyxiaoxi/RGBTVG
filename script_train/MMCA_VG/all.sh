@@ -17,18 +17,27 @@ mkdir -p logs/mmca/$MODALITY
 
 DATASET="rgbtvg_flir"
 export DATASET
-echo "===== Start FLIR training ====="
-stdbuf -oL -eL bash ./script_train/MMCA_VG/single.sh 2>&1 | tee logs/mmca/$MODALITY/$IMGSIZE"_"$BATCHSIZE"_flir.log"
+if [ "$MODALITY" == "rgb" ]; then
+    echo "Skipping FLIR training for rgb modality"
+else
+    echo "===== Start FLIR training ====="
+    stdbuf -oL -eL bash ./script_train/MMCA_VG/single.sh 2>&1 | tee logs/mmca/$MODALITY/$IMGSIZE"_"$BATCHSIZE"_flir.log"
+fi
 
 DATASET="rgbtvg_m3fd"
 export DATASET
 echo "===== Start M3FD training ====="
 stdbuf -oL -eL bash ./script_train/MMCA_VG/single.sh 2>&1 | tee logs/mmca/$MODALITY/$IMGSIZE"_"$BATCHSIZE"_m3fd.log"
 
+
 DATASET="rgbtvg_mfad"
 export DATASET
-echo "===== Start MFAD training ====="
-stdbuf -oL -eL bash ./script_train/MMCA_VG/single.sh 2>&1 | tee logs/mmca/$MODALITY/$IMGSIZE"_"$BATCHSIZE"_mfad.log"
+if [ "$MODALITY" == "rgb" ]; then
+    echo "Skipping MFAD training for rgb modality"
+else
+    echo "===== Start MFAD training ====="
+    stdbuf -oL -eL bash ./script_train/MMCA_VG/single.sh 2>&1 | tee logs/mmca/$MODALITY/$IMGSIZE"_"$BATCHSIZE"_mfad.log"
+fi
 
 echo "===== Start MIXUP training ====="
 stdbuf -oL -eL bash ./script_train/MMCA_VG/mixup.sh 2>&1 | tee logs/mmca/$MODALITY/$IMGSIZE"_"$BATCHSIZE"_mixup.log"

@@ -64,7 +64,8 @@ class GF_block(nn.Module):
         x = self.visual_linear_static_down(x)
         word_feat_embed = self.textual_linear_static_down(word_feat_embed)
         if self.isTR:
-            x = F.avg_pool1d(x.transpose(0, 2), 400).transpose(0, 2)
+            token_num = x.shape[0]
+            x = F.avg_pool1d(x.transpose(0, 2), token_num).transpose(0, 2)
         else:
             b, c, h, w = x.shape
             x = x.reshape(b, c, -1).permute(2, 0, 1)

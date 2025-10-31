@@ -23,7 +23,7 @@ EVAL_MODEL_PATH="./output_training/MDETR_resnet_${IMGSIZE}_${MODALITY}/$DATA_SET
 OUTPUT_DIR="./output_training/MDETR_resnet_${IMGSIZE}_${MODALITY}/$DATA_SET"
 
 "${DIST_CMD[@]}" \
-    --master_port 28501 \
+    --master_port 26501 \
     mdetr_train.py \
     --model_type ResNet \
     --batch_size $BATCHSIZE \
@@ -57,7 +57,7 @@ OUTPUT_DIR="./output_training/MDETR_resnet_${IMGSIZE}_${MODALITY}/$DATA_SET"
 evaluate() {
     local eval_set=$1
     "${DIST_CMD[@]}" \
-        --master_port 28600 \
+        --master_port 26600 \
         mdetr_eval.py \
         --model_type ResNet \
         --batch_size $BATCHSIZE \

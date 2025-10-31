@@ -18,12 +18,20 @@ mkdir -p logs/transvg/$MODALITY
 DATASET="rgbtvg_flir"
 export DATASET
 echo "===== Start FLIR training ====="
-stdbuf -oL -eL bash ./script_train/TRANS_VG/single.sh 2>&1 | tee logs/transvg/$MODALITY/$IMGSIZE"_"$BATCHSIZE"_flir.log"
+#如果modality是rgb跳过
+if [ "$MODALITY" == "rgb" ]; then
+    echo "Skipping FLIR training for rgb modality"
+else
+    stdbuf -oL -eL bash ./script_train/TRANS_VG/single.sh 2>&1 | tee logs/transvg/$MODALITY/$IMGSIZE"_"$BATCHSIZE"_flir.log"
+fi
 
 DATASET="rgbtvg_m3fd"
 export DATASET
-echo "===== Start M3FD training ====="
-stdbuf -oL -eL bash ./script_train/TRANS_VG/single.sh 2>&1 | tee logs/transvg/$MODALITY/$IMGSIZE"_"$BATCHSIZE"_m3fd.log"
+if [ "$MODALITY" == "rgb" ]; then
+    echo "Skipping M3FD training for rgb modality"
+else
+    stdbuf -oL -eL bash ./script_train/TRANS_VG/single.sh 2>&1 | tee logs/transvg/$MODALITY/$IMGSIZE"_"$BATCHSIZE"_m3fd.log"
+fi
 
 DATASET="rgbtvg_mfad"
 export DATASET

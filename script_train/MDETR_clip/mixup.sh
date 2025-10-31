@@ -61,6 +61,7 @@ evaluate() {
         mdetr_eval.py \
         --model_type CLIP \
         --batch_size $BATCHSIZE \
+        --imsize $IMGSIZE \
         --backbone resnet50 \
         --bert_enc_num 12 \
         --detr_enc_num 6 \

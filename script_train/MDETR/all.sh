@@ -18,7 +18,12 @@ mkdir -p logs/mdetr_resnet/$MODALITY
 DATASET="rgbtvg_flir"
 export DATASET
 echo "===== Start FLIR training ====="
-stdbuf -oL -eL bash ./script_train/MDETR/single.sh 2>&1 | tee logs/mdetr_resnet/$MODALITY/$IMGSIZE"_"$BATCHSIZE"_flir.log"
+if [ "$MODALITY" == "rgb" ]; then
+    echo "Skipping FLIR training for rgb modality"
+else
+    stdbuf -oL -eL bash ./script_train/MDETR/single.sh 2>&1 | tee logs/mdetr_resnet/$MODALITY/$IMGSIZE"_"$BATCHSIZE"_flir.log"
+fi
+
 
 DATASET="rgbtvg_m3fd"
 export DATASET

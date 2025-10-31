@@ -17,13 +17,13 @@ mkdir -p logs/mdetr_clip/$MODALITY
 
 DATASET="rgbtvg_flir"
 export DATASET
-echo "===== Start FLIR training ====="
-stdbuf -oL -eL bash ./script_train/MDETR_clip/single.sh 2>&1 | tee logs/mdetr_clip/$MODALITY/$IMGSIZE"_"$BATCHSIZE"_flir.log"
+# echo "===== Start FLIR training ====="
+# stdbuf -oL -eL bash ./script_train/MDETR_clip/single.sh 2>&1 | tee logs/mdetr_clip/$MODALITY/$IMGSIZE"_"$BATCHSIZE"_flir.log"
 
-DATASET="rgbtvg_m3fd"
-export DATASET
-echo "===== Start M3FD training ====="
-stdbuf -oL -eL bash ./script_train/MDETR_clip/single.sh 2>&1 | tee logs/mdetr_clip/$MODALITY/$IMGSIZE"_"$BATCHSIZE"_m3fd.log"
+# DATASET="rgbtvg_m3fd"
+# export DATASET
+# echo "===== Start M3FD training ====="
+# stdbuf -oL -eL bash ./script_train/MDETR_clip/single.sh 2>&1 | tee logs/mdetr_clip/$MODALITY/$IMGSIZE"_"$BATCHSIZE"_m3fd.log"
 
 DATASET="rgbtvg_mfad"
 export DATASET
