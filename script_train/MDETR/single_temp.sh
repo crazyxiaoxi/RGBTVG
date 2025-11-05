@@ -1,18 +1,12 @@
 #!/bin/bash
-echo -e "\n\n\n\n\n\n\n==================== mdetr mixup ==========================="
 
-DATA_SET="rgbtvg_mixup"
+DATA_SET=${DATASET:-rgbtvg_mfad}
+echo -e "\n\n\n\n\n\n\n==================== mdetr single dataset: $DATA_SET ==========================="
 IMGSIZE=${IMGSIZE:-224}
-BATCHSIZE=${BATCHSIZE:-16}
-MODALITY=${MODALITY:-rgbt}
+BATCHSIZE=${BATCHSIZE:-36}
+MODALITY=${MODALITY:-ir}
 CUDADEVICES=${CUDADEVICES:-0}
-EPOCHS=${EPOCHS:-110}
-
-if [[ "$MODALITY" == "ir" || "$MODALITY" == "rgb" ]]; then
-    echo "MODALITY is '$MODALITY', script will not run."
-    exit 0
-fi
-
+EPOCHS=${EPOCHS:-120}
 NPROC_PER_NODE=$(echo "$CUDADEVICES" | tr ',' '\n' | wc -l | awk '{print $1}')
 
 DIST_CMD=(env CUDA_VISIBLE_DEVICES=$CUDADEVICES python -m torch.distributed.launch --nproc_per_node=$NPROC_PER_NODE --use_env)
@@ -23,12 +17,12 @@ EVAL_MODEL_PATH="./output_training/MDETR_resnet_${IMGSIZE}_${MODALITY}/$DATA_SET
 OUTPUT_DIR="./output_training/MDETR_resnet_${IMGSIZE}_${MODALITY}/$DATA_SET"
 
 # "${DIST_CMD[@]}" \
-#     --master_port 26501 \
+#     --master_port 26500 \
 #     mdetr_train.py \
 #     --model_type ResNet \
 #     --batch_size $BATCHSIZE \
 #     --epochs $EPOCHS \
-#     --lr_bert 0.00001 \
+#     --lr_bert 0.0001 \
 #     --imsize $IMGSIZE \
 #     --aug_crop \
 #     --aug_scale \
@@ -86,27 +80,8 @@ evaluate() {
         --modality $MODALITY
 }
 
-evaluate "val"
-evaluate "test"
-evaluate "testA"
+# evaluate "val"
+# evaluate "test"
+# evaluate "testA"
 evaluate "testB"
-evaluate "testC"
-
-
-
-DATA_SET_TEST="rgbtvg_mixup"
-OTHER_DATASETS=("rgbtvg_flir" "rgbtvg_m3fd" "rgbtvg_mfad")
-
-for DATA_SET in "${OTHER_DATASETS[@]}"; do
-    echo -e "\n\n==================== Evaluating dataset: $DATA_SET ==========================="
-
-    EVAL_MODEL_PATH="./output_training/MDETR_resnet_${IMGSIZE}_${MODALITY}/$DATA_SET_TEST/best_checkpoint.pth"
-    OUTPUT_DIR="./output_training/MDETR_resnet_${IMGSIZE}_${MODALITY}/$DATA_SET_TEST"
-    mkdir -p $OUTPUT_DIR
-
-    evaluate "val"
-    evaluate "test"
-    evaluate "testA"
-    evaluate "testB"
-    evaluate "testC"
-done
+# evaluate "testC"

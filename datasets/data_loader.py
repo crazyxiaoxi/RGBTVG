@@ -640,7 +640,7 @@ class MDETRCLIP(data.Dataset):
                 img = Image.open(img_path).convert("RGB")
             elif self.args.modality == 'ir':
                 img_path = osp.join(self.im_dir, img_file)
-                img = Image.open(img_path).convert("L")  # 红外单通道
+                img = Image.open(img_path).convert("RGB")  # 红外单通道
             elif self.args.modality == 'rgbt':
                 img_rgb_path = osp.join(self.im_dir_rgb, img_file)
                 img_ir_path = osp.join(self.im_dir_ir, img_file)

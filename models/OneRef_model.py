@@ -130,6 +130,7 @@ class BEiT3ForGrounding(BEiT3Wrapper):
         self.img_resize = Resize([int(args.img_size / args.patch_size), int(args.img_size / args.patch_size)])  # 24 * 24 = 576
         self.num_visu_token = int((args.img_size / args.patch_size) ** 2)  # 384/16=24*24=576
         self.num_text_token = sys_args.max_query_len
+        print("debug!!!number of visu tokens: ", self.num_visu_token," number of text tokens: ", self.num_text_token)
         self.bbox_embed = MLP(embed_dim, embed_dim, 4, 3)
         self.visu_proj = nn.Linear(embed_dim, embed_dim)
         self.text_proj = nn.Linear(embed_dim, embed_dim)
@@ -364,7 +365,6 @@ class BEiT3ForGrounding(BEiT3Wrapper):
         else:
             vision_feat = outputs["encoder_out"][:, 0:image_len]  # image features:  torch.Size([24, 577, 768]), BLH
             language_feat = outputs["encoder_out"][:, image_len:]  # text features:  torch.Size([24, 64, 768]), BLH
-
         # Note that，F.normalize(x) = x / torch.norm(x)
 
         vision_contrastive = F.normalize(self.vision_head(vision_feat), dim=-1)

@@ -306,14 +306,11 @@ def main(args):
         print("Resume best_accu: {}".format(best_accu))
 
     if args.retrain:
-        # --retrain used for testing "retrain the model",
-        # according to paper: SiRi：A Simple Selective Retraining Mechanism for Transformer-based VG, ECCV 2022
-        # However, results shows no gains for pretrained model.
-        model_cache = build_model(args)
-        model_cache.to(device)
         checkpoint = torch.load(args.retrain, map_location='cpu')
-        model_cache.load_state_dict(checkpoint['model'])
-        model_without_ddp.vl_transformer = model_cache.vl_transformer
+        missing_keys, unexpected_keys = model_without_ddp.load_state_dict(checkpoint['model'], strict=False)
+        print('Missing keys when loading resume model: \n', missing_keys)
+        print('Unexpected additional keys in resume model: \n', unexpected_keys)
+        print("Retrain from pretrained model, start fresh training.")
 
     if args.output_dir and utils.is_main_process():
         with open(os.path.join(args.output_dir, "log.txt"), "a") as f:

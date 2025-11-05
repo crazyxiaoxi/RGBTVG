@@ -19,7 +19,7 @@ DATASET="rgbtvg_flir"
 export DATASET
 echo "===== Start FLIR training ====="
 #如果modality是rgb跳过
-if [ "$MODALITY" == "rgb" ]; then
+if [ "$MODALITY" == "ir" ]; then
     echo "Skipping FLIR training for rgb modality"
 else
     stdbuf -oL -eL bash ./script_train/TRANS_VG/single.sh 2>&1 | tee logs/transvg/$MODALITY/$IMGSIZE"_"$BATCHSIZE"_flir.log"
@@ -27,11 +27,8 @@ fi
 
 DATASET="rgbtvg_m3fd"
 export DATASET
-if [ "$MODALITY" == "rgb" ]; then
-    echo "Skipping M3FD training for rgb modality"
-else
-    stdbuf -oL -eL bash ./script_train/TRANS_VG/single.sh 2>&1 | tee logs/transvg/$MODALITY/$IMGSIZE"_"$BATCHSIZE"_m3fd.log"
-fi
+stdbuf -oL -eL bash ./script_train/TRANS_VG/single.sh 2>&1 | tee logs/transvg/$MODALITY/$IMGSIZE"_"$BATCHSIZE"_m3fd.log"
+
 
 DATASET="rgbtvg_mfad"
 export DATASET

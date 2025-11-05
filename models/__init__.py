@@ -4,7 +4,7 @@ from .trans_vg import TransVG, TransVGSwin
 from .mmca_vg import MMCA
 from .dynamic_mdetr_resnet import DynamicMDETR as DynamicMDETR_ResNet
 from .dynamic_mdetr_clip import DynamicMDETR as DynamicMDETR_CLIP
-
+from .OneRef_model import beit3_base_patch16_224_grounding, beit3_large_patch16_384_grounding
 def build_model(args):
     if args.model_name=='MMVG':
         from .mmvg import MMVG
@@ -35,4 +35,9 @@ def build_model(args):
             return DynamicMDETR_ResNet(args)
         elif args.model_type == 'CLIP':
             return DynamicMDETR_CLIP(args)
-
+    elif args.model_name=='OneRef':
+        print('Building OnRef model...')
+        if args.model == 'beit3_base_patch16_224':
+            return beit3_base_patch16_224_grounding(args)
+        elif args.model == 'beit3_large_patch16_384':
+            return beit3_large_patch16_384_grounding(args)

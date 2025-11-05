@@ -14,7 +14,13 @@ export EPOCHS
 echo "Start oneref training with IMGSIZE=$IMGSIZE BATCHSIZE=$BATCHSIZE CUDA=$CUDADEVICES MODALITY=$MODALITY"
 
 mkdir -p logs/OneRef_base_rec/$MODALITY
-
+if [ "$MODALITY" == "rgb" ]; then
+    export PRETRAIN_MODEL="../dataset_and_pretrain_model/pretrain_model/pretrained_weights/oneref/b_rec_224.pth"
+elif [ "$MODALITY" == "ir" ]; then
+    export PRETRAIN_MODEL="../dataset_and_pretrain_model/pretrain_model/pretrained_weights/oneref/b_rec.pth"
+elif [ "$MODALITY" == "rgbt" ]; then
+    export PRETRAIN_MODEL="../dataset_and_pretrain_model/pretrain_model/pretrained_weights/oneref/b_rec.pth"
+fi
 DATASET="rgbtvg_flir"
 export DATASET
 echo "===== Start FLIR training ====="

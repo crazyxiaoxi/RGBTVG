@@ -655,13 +655,13 @@ class HiVG(nn.Module):
         self.args = args
         if (args.model == "ViT-L/14-336"):
             print("init CLIP ViT-L/14-336")
-            self.clip = CLIPModel.from_pretrained("/home/shared/pretrain_model/pretrained_weights/CLIP/clip-vit-large-patch14-336")
+            self.clip = CLIPModel.from_pretrained("../dataset_and_pretrain_model/pretrain_model/pretrained_weights/CLIP/clip-vit-base-patch16")
             self.extract_vision_layer = [12, 16, 20, 24]  # v4
             self.adapt_layer = [11, 15, 19, 23]
             self.patch_size = 14
         elif (args.model == "ViT-L/14"):  # main large model
             print("init CLIP ViT-L/14")
-            self.clip = CLIPModel.from_pretrained("/home/shared/pretrain_model/pretrained_weights/CLIP/clip-vit-large-patch14")
+            self.clip = CLIPModel.from_pretrained("../dataset_and_pretrain_model/pretrain_model/pretrained_weights/CLIP/clip-vit-large-patch14")
             self.extract_vision_layer = [6, 12, 18, 24]  # final 版本
             self.adapt_layer = [] if args.warmup is True else [4, 10, 16, 22]  # large model is trained on two phrases
             self.patch_size = 14

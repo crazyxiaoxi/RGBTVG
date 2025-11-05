@@ -77,7 +77,6 @@ class MMCA(nn.Module):
         vg_hs = vg_hs[0]
 
         pred_box = self.bbox_embed(vg_hs).sigmoid()
-
         return pred_box
 
 
