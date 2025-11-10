@@ -339,14 +339,37 @@ class BEiT3ForGrounding(BEiT3Wrapper):
                                     vision_masked_position=mim_masked_pos, return_all_hiddens=self.return_all_hiddens)
             #concat 2 modality encoder_states and encoder_out , not simple addition, but concat
             outputs = {}
-            encoder_states = []
-            for i in range(len(rgb_outputs['encoder_states'])):
-                rgb_state = rgb_outputs['encoder_states'][i]  # B x L x H
-                ir_state = ir_outputs['encoder_states'][i]    # B x L x H
-                fused_state = torch.cat([rgb_state, ir_state], dim=1)  # 在 token 维度拼接 -> B x 2L x H
-                encoder_states.append(fused_state)
-            outputs['encoder_states'] = encoder_states
-            outputs['encoder_out'] = torch.cat([rgb_outputs['encoder_out'], ir_outputs['encoder_out']], dim=1)  # B x 2L x H
+            if ('encoder_states' in rgb_outputs) and ('encoder_states' in ir_outputs):
+                encoder_states = []
+                for i in range(len(rgb_outputs['encoder_states'])):
+                    rgb_state = rgb_outputs['encoder_states'][i]  # B x L x H
+                    ir_state = ir_outputs['encoder_states'][i]    # B x L x H
+                    rgb_vision = rgb_state[:, :image_len, :]
+                    rgb_text = rgb_state[:, image_len:, :]
+                    ir_vision = ir_state[:, :image_len, :]
+                    ir_text = ir_state[:, image_len:, :]
+                    rgb_cls_state, rgb_patch_state = rgb_vision[:, :1, :], rgb_vision[:, 1:, :]
+                    ir_cls_state, ir_patch_state = ir_vision[:, :1, :], ir_vision[:, 1:, :]
+                    fused_vision_state = torch.cat(
+                        [rgb_cls_state, ir_cls_state, rgb_patch_state, ir_patch_state],
+                        dim=1,
+                    )
+                    fused_text_state = torch.cat([rgb_text, ir_text], dim=1)
+                    fused_state = torch.cat([fused_vision_state, fused_text_state], dim=1)
+                    encoder_states.append(fused_state)
+                outputs['encoder_states'] = encoder_states
+            rgb_vision_out = rgb_outputs['encoder_out'][:, :image_len, :]
+            rgb_text_out = rgb_outputs['encoder_out'][:, image_len:, :]
+            ir_vision_out = ir_outputs['encoder_out'][:, :image_len, :]
+            ir_text_out = ir_outputs['encoder_out'][:, image_len:, :]
+            rgb_cls_token, rgb_patch_tokens = rgb_vision_out[:, :1, :], rgb_vision_out[:, 1:, :]
+            ir_cls_token, ir_patch_tokens = ir_vision_out[:, :1, :], ir_vision_out[:, 1:, :]
+            fused_vision = torch.cat(
+                [rgb_cls_token, ir_cls_token, rgb_patch_tokens, ir_patch_tokens],
+                dim=1,
+            )
+            fused_language = torch.cat([rgb_text_out, ir_text_out], dim=1)
+            outputs['encoder_out'] = torch.cat([fused_vision, fused_language], dim=1)
         # Here, the uni_mask used in the captioning task is not employed, and no attn_mask is passed in.
         else :
             if training and enable_ref_mlm:
@@ -367,17 +390,23 @@ class BEiT3ForGrounding(BEiT3Wrapper):
         # Note that，F.normalize(x) = x / torch.norm(x)
 
         vision_contrastive = F.normalize(self.vision_head(vision_feat), dim=-1)
-        vision_cls = vision_contrastive[:, 0, :].contiguous()
-        vision_norm_token = vision_contrastive[:, 1:, :].contiguous()  # B L H
+        if self.args.modality == 'rgbt':
+            vision_cls_rgb = vision_contrastive[:, 0, :].contiguous()
+            vision_cls_ir = vision_contrastive[:, 1, :].contiguous()
+            vision_cls = (vision_cls_rgb + vision_cls_ir) / 2
+            vision_norm_token = vision_contrastive[:, 2:, :].contiguous()  # remove both cls tokens
+        else:
+            vision_cls = vision_contrastive[:, 0, :].contiguous()
+            vision_norm_token = vision_contrastive[:, 1:, :].contiguous()  # B L H
         language_contrastive = F.normalize(self.language_head(language_feat), dim=-1)
         language_cls = language_contrastive[:, 0, :].contiguous()  # language_cls shape:  torch.Size([64, 768])
         language_norm_token = language_contrastive[:, :, :].contiguous()
 
         # visual_token_cosine_similarity_constrain
-        if self.args.modality == 'rgbt':
-            visu_token_dot_product_matrix = torch.mul(language_cls.unsqueeze(1).repeat(1, 2 * image_len - 1, 1), vision_norm_token)
-        else:
-            visu_token_dot_product_matrix = torch.mul(language_cls.unsqueeze(1).repeat(1, image_len - 1, 1), vision_norm_token)
+        visu_token_dot_product_matrix = torch.mul(
+            language_cls.unsqueeze(1).repeat(1, vision_norm_token.shape[1], 1),
+            vision_norm_token,
+        )
         visu_token_similarity = visu_token_dot_product_matrix.sum(axis=-1, keepdim=False)  # torch.Size([96, 196])
 
         if self.args.modality == 'rgbt':
@@ -387,8 +416,11 @@ class BEiT3ForGrounding(BEiT3Wrapper):
 
         # Perform Visual Grounding
         visu_src = self.visu_proj(vision_feat)  # B L H
-        vg_hs = torch.mul(visu_token_similarity.softmax(dim=-1).unsqueeze(-1).repeat(1, 1, visu_src.shape[-1]),
-                          visu_src[:, 1:, :])
+        num_cls_tokens = 2 if self.args.modality == 'rgbt' else 1
+        vg_hs = torch.mul(
+            visu_token_similarity.softmax(dim=-1).unsqueeze(-1).repeat(1, 1, visu_src.shape[-1]),
+            visu_src[:, num_cls_tokens:, :],
+        )
         vg_hs = vg_hs.sum(axis=1, keepdim=False)  # B H
         pred_box = self.bbox_embed(vg_hs).sigmoid()
 

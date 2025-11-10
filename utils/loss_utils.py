@@ -294,10 +294,18 @@ def one_ref_loss(args, batch_pred, batch_target, tgt_mask, contrastive_loss, vis
     if args.use_box_mask_constraints or args.enable_dynamic_mim:
         coef_focal = 20.0
         coef_dice = 2.0
-        patch_num = int(mpmath.sqrt(visu_sim.shape[-1]))
-        # Downward interpolation, the shape of tgt_mask is B C H W.
-        obj_mask = mdetr_interpolate(tgt_mask.float(), (patch_num, patch_num), mode="nearest")[:, 0] > 0.5
-        obj_mask = obj_mask.flatten(1).float()
+        if getattr(args, "modality", None) == "rgbt":
+            patch_tokens = visu_sim.shape[-1] // 2
+            patch_num = int(mpmath.sqrt(patch_tokens))
+            obj_mask_single = mdetr_interpolate(
+                tgt_mask.float(), (patch_num, patch_num), mode="nearest"
+            )[:, 0] > 0.5
+            obj_mask_single = obj_mask_single.flatten(1).float()
+            obj_mask = obj_mask_single.repeat(1, 2)
+        else:
+            patch_num = int(mpmath.sqrt(visu_sim.shape[-1]))
+            obj_mask = mdetr_interpolate(tgt_mask.float(), (patch_num, patch_num), mode="nearest")[:, 0] > 0.5
+            obj_mask = obj_mask.flatten(1).float()
         visu_sim = visu_sim.flatten(1)
         losses['loss_mrm_focal'] = sigmoid_focal_loss(visu_sim, obj_mask, num_boxes) * coef_focal
         losses['loss_mrm_dice'] = dice_loss(visu_sim, obj_mask, num_boxes) * coef_dice
