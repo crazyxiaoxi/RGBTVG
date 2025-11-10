@@ -17,9 +17,9 @@ mkdir -p logs/OneRef_base_rec/$MODALITY
 if [ "$MODALITY" == "rgb" ]; then
     export PRETRAIN_MODEL="../dataset_and_pretrain_model/pretrain_model/pretrained_weights/oneref/b_rec_224.pth"
 elif [ "$MODALITY" == "ir" ]; then
-    export PRETRAIN_MODEL="../dataset_and_pretrain_model/pretrain_model/pretrained_weights/oneref/b_rec.pth"
+    export PRETRAIN_MODEL="../dataset_and_pretrain_model/pretrain_model/pretrained_weights/oneref/b_rec_224.pth"
 elif [ "$MODALITY" == "rgbt" ]; then
-    export PRETRAIN_MODEL="../dataset_and_pretrain_model/pretrain_model/pretrained_weights/oneref/b_rec.pth"
+    export PRETRAIN_MODEL="../dataset_and_pretrain_model/pretrain_model/pretrained_weights/oneref/b_rec_224.pth"
 fi
 DATASET="rgbtvg_flir"
 export DATASET
@@ -36,5 +36,8 @@ export DATASET
 echo "===== Start MFAD training ====="
 stdbuf -oL -eL bash ./script_train/OneRef_base_rec/single.sh 2>&1 | tee logs/OneRef_base_rec/$MODALITY/$IMGSIZE"_"$BATCHSIZE"_mfad.log"
 
+
+DATASET="rgbtvg_mixup"
+export DATASET
 echo "===== Start MIXUP training ====="
 stdbuf -oL -eL bash ./script_train/OneRef_base_rec/mixup.sh 2>&1 | tee logs/OneRef_base_rec/$MODALITY/$IMGSIZE"_"$BATCHSIZE"_mixup.log"

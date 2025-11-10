@@ -18,6 +18,7 @@ from utils.box_utils import xywh2xyxy
 from utils.visual_utils import visualization
 import numpy as np
 from models.clip_mdetr import clip
+from utils.oneref_visual_utils import visualize_oneref_batch
 
 # TODO: 训练核心代码
 def train_one_epoch(args, model: torch.nn.Module, data_loader: Iterable,
@@ -398,6 +399,12 @@ def evaluate(args, model: torch.nn.Module, data_loader: Iterable, device: torch.
 
     pred_mask_list = []
     gt_mask_list = []
+    
+    # Visualization related variables
+    visualize_enabled = getattr(args, 'visualize', False) and args.model_name == 'OneRef'
+    visualize_count = 0
+    visualize_num_samples = getattr(args, 'visualize_num_samples', 100) if visualize_enabled else 0
+    visual_output_dir = getattr(args, 'visual_output_dir', './visual_result/oneref')
 
     for _, batch in enumerate(tqdm(data_loader)):
         if hasattr(args, "old_dataloader") and args.old_dataloader:
@@ -425,6 +432,31 @@ def evaluate(args, model: torch.nn.Module, data_loader: Iterable, device: torch.
             output, seg_mask, img_cls, text_cls = model(img_data.tensors, img_data.mask, text_data)
             pred_mask_list.append(seg_mask.cpu())
             gt_mask_list.append(tgt_mask.cpu())
+            
+            # Visualization for OneRef
+            if visualize_enabled and (visualize_num_samples == 0 or visualize_count < visualize_num_samples):
+                # Only visualize on main process to avoid duplicate saves
+                if utils.is_main_process():
+                    # Get current batch predictions and ground truth
+                    batch_pred_boxes = output.cpu()
+                    batch_gt_boxes = target.cpu()
+                    batch_pred_masks = seg_mask.cpu()
+                    batch_gt_masks = tgt_mask.cpu()
+                    
+                    # Visualize this batch
+                    try:
+                        visualize_oneref_batch(
+                            args, img_data, text_data, 
+                            batch_pred_boxes, batch_gt_boxes,
+                            batch_pred_masks, batch_gt_masks,
+                            start_idx=visualize_count,
+                            output_dir=visual_output_dir
+                        )
+                        visualize_count += batch_size
+                        if visualize_count % 10 == 0:
+                            print(f"Visualized {visualize_count} samples...")
+                    except Exception as e:
+                        print(f"Warning: Visualization failed: {e}")
 
         elif args.model_name == 'HiVG':
             output, _, _, token_sim, seg_mask = model(img_data, text_data)
@@ -699,4 +731,3 @@ def evaluate_clip_vg(args, model: torch.nn.Module, data_loader: Iterable, device
     accuracy = float(result_tensor[0]) / float(result_tensor[1])
 
     return accuracy
-

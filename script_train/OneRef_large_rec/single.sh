@@ -8,14 +8,9 @@ CUDADEVICES=${CUDADEVICES:-3}
 TOTAL_EPOCHS=${EPOCHS:-12}   # 总轮数
 PRETRAIN_MODEL=${PRETRAIN_MODEL:-""}
 
-if [[ "$MODALITY" == "ir" || "$MODALITY" == "rgb" || "$MODALITY" == "rgbt" ]]; then
-    echo "MODALITY is '$MODALITY', script will not run."
-    exit 0
-fi
-
 DATA_ROOT="../dataset_and_pretrain_model/datasets/VG/image_data"
 SPLIT_ROOT="../dataset_and_pretrain_model/datasets/VG/ref_data_shuffled"
-OUTPUT_DIR="./output_training/ONEREF_base_rec_${IMGSIZE}_${MODALITY}/$DATA_SET"
+OUTPUT_DIR="./output_training/ONEREF_large_rec_${IMGSIZE}_${MODALITY}/$DATA_SET"
 
 mkdir -p $OUTPUT_DIR
 
@@ -34,14 +29,14 @@ evaluate() {
     local eval_set=$1
     local model_path=$2
     "${DIST_CMD[@]}" \
-        --master_port $((25000 + ROUND)) \
+        --master_port $((35000 + ROUND)) \
         oneref_eval.py \
         --modality $MODALITY \
         --imsize $IMGSIZE \
         --num_workers 4 \
         --batch_size $BATCHSIZE \
         --max_query_len 64 \
-        --model beit3_base_patch16_224 \
+        --model beit3_large_patch16_224 \
         --task grounding \
         --dataset $DATA_SET \
         --use_regress_box \
@@ -54,13 +49,13 @@ evaluate() {
         --output_dir $OUTPUT_DIR
 }
 
-# ===================== 训练轮次 =====================
+===================== 训练轮次 =====================
 for ROUND in {1..2}; do
     echo -e "\n\n========== Training Round $ROUND =========="
 
     # ---- 冻结 backbone 阶段 ----
     "${DIST_CMD[@]}" \
-        --master_port $((23000 + ROUND)) \
+        --master_port $((33000 + ROUND)) \
         oneref_train.py \
         --modality $MODALITY \
         --imsize $IMGSIZE \
@@ -74,7 +69,7 @@ for ROUND in {1..2}; do
         --aug_scale \
         --aug_translate \
         --max_query_len 64 \
-        --model beit3_base_patch16_224 \
+        --model beit3_large_patch16_224 \
         --task grounding \
         --dataset $DATA_SET \
         --use_regress_box \
@@ -90,21 +85,21 @@ for ROUND in {1..2}; do
 
     # ---- 使用 box mask constraints 阶段 ----
     "${DIST_CMD[@]}" \
-        --master_port $((24000 + ROUND)) \
+        --master_port $((34000 + ROUND)) \
         oneref_train.py \
         --modality $MODALITY \
         --imsize $IMGSIZE \
         --retrain $CHECKPOINT_PATH \
         --num_workers 4 \
         --epochs $EPOCH_MASK \
-        --batch_size $(($BATCHSIZE / 8)) \
+        --batch_size $(($BATCHSIZE / 40)) \
         --lr 0.00003  \
         --lr_scheduler cosine \
         --aug_crop \
         --aug_scale \
         --aug_translate \
         --max_query_len 64 \
-        --model beit3_base_patch16_224 \
+        --model beit3_large_patch16_224 \
         --task grounding \
         --dataset $DATA_SET \
         --use_regress_box \
@@ -121,18 +116,9 @@ for ROUND in {1..2}; do
     # ---- eval ----
 
 done
-
+CHECKPOINT_PATH="$OUTPUT_DIR/best_checkpoint.pth"
 for split in "val" "test" "testA" "testB" "testC"; do
     evaluate "$split" "$CHECKPOINT_PATH"
 done
 echo -e "\nTraining + Evaluation finished. Final checkpoint: $CHECKPOINT_PATH"
 
-
-OTHER_DATASETS=("rgbtvg_flir" "rgbtvg_m3fd" "rgbtvg_mfad")
-
-for DATA_SET in "${OTHER_DATASETS[@]}"; do
-    for split in "val" "test" "testA" "testB" "testC"; do
-        evaluate "$split" "$CHECKPOINT_PATH"
-    done
-done
-echo -e "\nAll Evaluations on other datasets finished."

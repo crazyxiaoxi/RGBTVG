@@ -287,10 +287,10 @@ def main(args):
 
     best_accu = 0
 
-    if args.finetune and not args.resume:
-        val_stats = validate(args, model, data_loader_val, device)
-        best_accu = val_stats['accu']
-        print("Init finetune accu: {}".format(best_accu))
+    # if args.finetune and not args.resume:
+    #     val_stats = validate(args, model, data_loader_val, device)
+    #     # best_accu = val_stats['accu']
+    #     print("Init finetune accu: {}".format(best_accu))
 
     if args.resume:
         checkpoint = torch.load(args.resume, map_location='cpu')

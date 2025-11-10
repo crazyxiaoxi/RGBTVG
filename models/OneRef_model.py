@@ -130,7 +130,6 @@ class BEiT3ForGrounding(BEiT3Wrapper):
         self.img_resize = Resize([int(args.img_size / args.patch_size), int(args.img_size / args.patch_size)])  # 24 * 24 = 576
         self.num_visu_token = int((args.img_size / args.patch_size) ** 2)  # 384/16=24*24=576
         self.num_text_token = sys_args.max_query_len
-        print("debug!!!number of visu tokens: ", self.num_visu_token," number of text tokens: ", self.num_text_token)
         self.bbox_embed = MLP(embed_dim, embed_dim, 4, 3)
         self.visu_proj = nn.Linear(embed_dim, embed_dim)
         self.text_proj = nn.Linear(embed_dim, embed_dim)
@@ -477,6 +476,12 @@ def beit3_large_patch16_384_grounding(sys_args, pretrained=False, **kwargs):
     model = BEiT3ForGrounding(sys_args, args, **kwargs)
     return model
 
+
+@register_model
+def beit3_large_patch16_224_grounding(sys_args, pretrained=False, **kwargs):
+    args = _get_large_config(img_size=224, **kwargs)  # Return the basic model configuration information.
+    model = BEiT3ForGrounding(sys_args, args, **kwargs)
+    return model
 
 class MLP(nn.Module):
     """ Very simple multi-layer perceptron (also called FFN)"""

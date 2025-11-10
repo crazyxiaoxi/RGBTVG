@@ -15,7 +15,7 @@ fi
 
 DATA_ROOT="../dataset_and_pretrain_model/datasets/VG/image_data"
 SPLIT_ROOT="../dataset_and_pretrain_model/datasets/VG/ref_data_shuffled"
-OUTPUT_DIR="./output_training/ONEREF_base_rec_${IMGSIZE}_${MODALITY}/$DATA_SET"
+OUTPUT_DIR="./output_training/ONEREF_large_rec_${IMGSIZE}_${MODALITY}/$DATA_SET"
 
 mkdir -p $OUTPUT_DIR
 
@@ -41,7 +41,7 @@ evaluate() {
         --num_workers 4 \
         --batch_size $BATCHSIZE \
         --max_query_len 64 \
-        --model beit3_base_patch16_224 \
+        --model beit3_large_patch16_224 \
         --task grounding \
         --dataset $DATA_SET \
         --use_regress_box \
@@ -74,7 +74,7 @@ for ROUND in {1..2}; do
         --aug_scale \
         --aug_translate \
         --max_query_len 64 \
-        --model beit3_base_patch16_224 \
+        --model beit3_large_patch16_224 \
         --task grounding \
         --dataset $DATA_SET \
         --use_regress_box \
@@ -104,7 +104,7 @@ for ROUND in {1..2}; do
         --aug_scale \
         --aug_translate \
         --max_query_len 64 \
-        --model beit3_base_patch16_224 \
+        --model beit3_large_patch16_224 \
         --task grounding \
         --dataset $DATA_SET \
         --use_regress_box \
