@@ -141,8 +141,10 @@ def main(args):
     checkpoint = torch.load(args.eval_model, map_location='cpu')
     # import pdb
     # pdb.set_trace()
-    model_without_ddp.load_state_dict(checkpoint['model'])
-    print("Current model training epoch is: ", checkpoint['epoch'])
+    missing_keys, unexpected_keys = model_without_ddp.load_state_dict(checkpoint['model'],strict=False)
+    print('Missing keys when loading resume model: \n', missing_keys)
+    print('Unexpected additional keys in resume model: \n', unexpected_keys)
+    print("\nCurrent model training epoch is: ", checkpoint['epoch'])
 
     # output log
     eval_model = args.eval_model

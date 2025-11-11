@@ -1,0 +1,192 @@
+/home/xijiawen/anaconda3/envs/rgbtvg/lib/python3.9/site-packages/torch/distributed/launch.py:183: FutureWarning: The module torch.distributed.launch is deprecated
+and will be removed in future. Use torchrun.
+Note that --use-env is set by default in torchrun.
+If your script expects `--local-rank` argument to be set, please
+change it to read from `os.environ['LOCAL_RANK']` instead. See 
+https://pytorch.org/docs/stable/distributed.html#launch-utility for 
+further instructions
+
+  warnings.warn(
+[2025-11-11 10:51:26,259] torch.distributed.run: [WARNING] 
+[2025-11-11 10:51:26,259] torch.distributed.run: [WARNING] *****************************************
+[2025-11-11 10:51:26,259] torch.distributed.run: [WARNING] Setting OMP_NUM_THREADS environment variable for each process to be 1 in default, to avoid your system being overloaded, please further tune the variable for optimal performance in your application as needed. 
+[2025-11-11 10:51:26,259] torch.distributed.run: [WARNING] *****************************************
+/home/xijiawen/code/rgbtvg/RGBTVG/models/clip/clip.py:6: UserWarning: pkg_resources is deprecated as an API. See https://setuptools.pypa.io/en/latest/pkg_resources.html. The pkg_resources package is slated for removal as early as 2025-11-30. Refrain from using this package or pin to Setuptools<81.
+  from pkg_resources import packaging
+/home/xijiawen/code/rgbtvg/RGBTVG/models/clip/clip.py:6: UserWarning: pkg_resources is deprecated as an API. See https://setuptools.pypa.io/en/latest/pkg_resources.html. The pkg_resources package is slated for removal as early as 2025-11-30. Refrain from using this package or pin to Setuptools<81.
+  from pkg_resources import packaging
+| distributed init (rank 0): env://
+| distributed init (rank 1): env://
+git:
+  sha: 98f4a1d7ef7255e0eecf5a63a86b57e17cad337d, status: has uncommited changes, branch: main
+
+### INFO ### torch.backends.cudnn.benchmark = False
+model_config = beit3_large_patch16_224_grounding
+number of head params:  3152900
+number of requires_grad params:  679002117
+number of all params:  679002117
+Missing keys when loading resume model: 
+ []
+Unexpected additional keys in resume model: 
+ []
+
+Current model training epoch is:  14
+  0%|          | 0/9 [00:00<?, ?it/s]  0%|          | 0/9 [00:00<?, ?it/s] 11%|█         | 1/9 [00:01<00:13,  1.70s/it] 11%|█         | 1/9 [00:01<00:13,  1.74s/it] 22%|██▏       | 2/9 [00:01<00:06,  1.14it/s] 22%|██▏       | 2/9 [00:02<00:06,  1.11it/s] 33%|███▎      | 3/9 [00:02<00:03,  1.65it/s] 44%|████▍     | 4/9 [00:02<00:02,  2.06it/s] 33%|███▎      | 3/9 [00:02<00:04,  1.39it/s] 56%|█████▌    | 5/9 [00:02<00:01,  2.36it/s] 44%|████▍     | 4/9 [00:03<00:03,  1.61it/s] 67%|██████▋   | 6/9 [00:03<00:01,  2.55it/s] 56%|█████▌    | 5/9 [00:03<00:02,  2.00it/s] 78%|███████▊  | 7/9 [00:03<00:00,  2.79it/s] 67%|██████▋   | 6/9 [00:03<00:01,  2.34it/s] 89%|████████▉ | 8/9 [00:03<00:00,  2.98it/s] 78%|███████▊  | 7/9 [00:03<00:00,  2.64it/s]100%|██████████| 9/9 [00:03<00:00,  3.69it/s]100%|██████████| 9/9 [00:04<00:00,  2.15it/s]
+ 89%|████████▉ | 8/9 [00:04<00:00,  2.87it/s]100%|██████████| 9/9 [00:04<00:00,  3.58it/s]100%|██████████| 9/9 [00:04<00:00,  1.97it/s]
+accuracy2:  0.3881578947368421
+Testing time 0:00:04
+{'test_model:': '../dataset_and_pretrain_model/pretrain_model/pretrained_weights/oneref/l_rec_224.pth', 'val_set_accuracy': 0.3881578947368421}
+/home/xijiawen/anaconda3/envs/rgbtvg/lib/python3.9/site-packages/torch/distributed/launch.py:183: FutureWarning: The module torch.distributed.launch is deprecated
+and will be removed in future. Use torchrun.
+Note that --use-env is set by default in torchrun.
+If your script expects `--local-rank` argument to be set, please
+change it to read from `os.environ['LOCAL_RANK']` instead. See 
+https://pytorch.org/docs/stable/distributed.html#launch-utility for 
+further instructions
+
+  warnings.warn(
+[2025-11-11 10:52:08,539] torch.distributed.run: [WARNING] 
+[2025-11-11 10:52:08,539] torch.distributed.run: [WARNING] *****************************************
+[2025-11-11 10:52:08,539] torch.distributed.run: [WARNING] Setting OMP_NUM_THREADS environment variable for each process to be 1 in default, to avoid your system being overloaded, please further tune the variable for optimal performance in your application as needed. 
+[2025-11-11 10:52:08,539] torch.distributed.run: [WARNING] *****************************************
+/home/xijiawen/code/rgbtvg/RGBTVG/models/clip/clip.py:6: UserWarning: pkg_resources is deprecated as an API. See https://setuptools.pypa.io/en/latest/pkg_resources.html. The pkg_resources package is slated for removal as early as 2025-11-30. Refrain from using this package or pin to Setuptools<81.
+  from pkg_resources import packaging
+/home/xijiawen/code/rgbtvg/RGBTVG/models/clip/clip.py:6: UserWarning: pkg_resources is deprecated as an API. See https://setuptools.pypa.io/en/latest/pkg_resources.html. The pkg_resources package is slated for removal as early as 2025-11-30. Refrain from using this package or pin to Setuptools<81.
+  from pkg_resources import packaging
+| distributed init (rank 1): env://
+| distributed init (rank 0): env://
+git:
+  sha: 98f4a1d7ef7255e0eecf5a63a86b57e17cad337d, status: has uncommited changes, branch: main
+
+### INFO ### torch.backends.cudnn.benchmark = False
+model_config = beit3_large_patch16_224_grounding
+number of head params:  3152900
+number of requires_grad params:  679002117
+number of all params:  679002117
+  0%|          | 0/30 [00:00<?, ?it/s]Missing keys when loading resume model: 
+ []
+Unexpected additional keys in resume model: 
+ []
+
+Current model training epoch is:  14
+  0%|          | 0/30 [00:00<?, ?it/s]  3%|▎         | 1/30 [00:01<00:54,  1.89s/it]  3%|▎         | 1/30 [00:01<00:52,  1.82s/it]  7%|▋         | 2/30 [00:02<00:29,  1.04s/it]  7%|▋         | 2/30 [00:02<00:29,  1.04s/it] 10%|█         | 3/30 [00:02<00:18,  1.44it/s] 10%|█         | 3/30 [00:02<00:19,  1.35it/s] 13%|█▎        | 4/30 [00:03<00:15,  1.73it/s] 13%|█▎        | 4/30 [00:03<00:15,  1.69it/s] 17%|█▋        | 5/30 [00:03<00:13,  1.84it/s] 17%|█▋        | 5/30 [00:03<00:13,  1.82it/s] 20%|██        | 6/30 [00:03<00:10,  2.18it/s] 20%|██        | 6/30 [00:03<00:11,  2.13it/s] 23%|██▎       | 7/30 [00:04<00:10,  2.15it/s] 23%|██▎       | 7/30 [00:04<00:10,  2.24it/s] 27%|██▋       | 8/30 [00:04<00:10,  2.15it/s] 27%|██▋       | 8/30 [00:04<00:09,  2.22it/s] 30%|███       | 9/30 [00:05<00:08,  2.38it/s] 30%|███       | 9/30 [00:05<00:08,  2.38it/s] 33%|███▎      | 10/30 [00:05<00:08,  2.30it/s] 33%|███▎      | 10/30 [00:05<00:08,  2.26it/s] 37%|███▋      | 11/30 [00:05<00:07,  2.38it/s] 37%|███▋      | 11/30 [00:05<00:08,  2.37it/s] 40%|████      | 12/30 [00:06<00:06,  2.63it/s] 40%|████      | 12/30 [00:06<00:07,  2.26it/s] 43%|████▎     | 13/30 [00:06<00:06,  2.47it/s] 43%|████▎     | 13/30 [00:06<00:07,  2.35it/s] 47%|████▋     | 14/30 [00:07<00:06,  2.45it/s] 47%|████▋     | 14/30 [00:07<00:06,  2.32it/s] 50%|█████     | 15/30 [00:07<00:05,  2.69it/s] 50%|█████     | 15/30 [00:07<00:05,  2.59it/s] 53%|█████▎    | 16/30 [00:07<00:05,  2.54it/s] 53%|█████▎    | 16/30 [00:08<00:05,  2.40it/s] 57%|█████▋    | 17/30 [00:08<00:05,  2.52it/s] 57%|█████▋    | 17/30 [00:08<00:05,  2.18it/s] 60%|██████    | 18/30 [00:08<00:04,  2.45it/s] 63%|██████▎   | 19/30 [00:09<00:04,  2.44it/s] 60%|██████    | 18/30 [00:09<00:05,  2.05it/s] 67%|██████▋   | 20/30 [00:09<00:03,  2.67it/s] 70%|███████   | 21/30 [00:09<00:03,  2.89it/s] 63%|██████▎   | 19/30 [00:09<00:05,  1.97it/s] 73%|███████▎  | 22/30 [00:09<00:02,  3.06it/s] 67%|██████▋   | 20/30 [00:09<00:04,  2.28it/s] 77%|███████▋  | 23/30 [00:10<00:02,  3.18it/s] 70%|███████   | 21/30 [00:10<00:03,  2.56it/s] 80%|████████  | 24/30 [00:10<00:01,  3.26it/s] 73%|███████▎  | 22/30 [00:10<00:02,  2.79it/s] 83%|████████▎ | 25/30 [00:10<00:01,  3.34it/s] 77%|███████▋  | 23/30 [00:10<00:02,  2.99it/s] 87%|████████▋ | 26/30 [00:11<00:01,  3.40it/s] 80%|████████  | 24/30 [00:11<00:01,  3.14it/s] 90%|█████████ | 27/30 [00:11<00:00,  3.43it/s] 83%|████████▎ | 25/30 [00:11<00:01,  3.25it/s] 93%|█████████▎| 28/30 [00:11<00:00,  3.45it/s] 87%|████████▋ | 26/30 [00:11<00:01,  3.35it/s] 97%|█████████▋| 29/30 [00:11<00:00,  3.47it/s] 90%|█████████ | 27/30 [00:11<00:00,  3.41it/s]100%|██████████| 30/30 [00:12<00:00,  3.93it/s] 93%|█████████▎| 28/30 [00:12<00:00,  3.45it/s]100%|██████████| 30/30 [00:12<00:00,  2.41it/s]
+ 97%|█████████▋| 29/30 [00:12<00:00,  3.48it/s]100%|██████████| 30/30 [00:12<00:00,  3.97it/s]100%|██████████| 30/30 [00:12<00:00,  2.32it/s]
+accuracy2:  0.492018779342723
+Testing time 0:00:13
+{'test_model:': '../dataset_and_pretrain_model/pretrain_model/pretrained_weights/oneref/l_rec_224.pth', 'test_set_accuracy': 0.492018779342723}
+/home/xijiawen/anaconda3/envs/rgbtvg/lib/python3.9/site-packages/torch/distributed/launch.py:183: FutureWarning: The module torch.distributed.launch is deprecated
+and will be removed in future. Use torchrun.
+Note that --use-env is set by default in torchrun.
+If your script expects `--local-rank` argument to be set, please
+change it to read from `os.environ['LOCAL_RANK']` instead. See 
+https://pytorch.org/docs/stable/distributed.html#launch-utility for 
+further instructions
+
+  warnings.warn(
+[2025-11-11 10:53:01,283] torch.distributed.run: [WARNING] 
+[2025-11-11 10:53:01,283] torch.distributed.run: [WARNING] *****************************************
+[2025-11-11 10:53:01,283] torch.distributed.run: [WARNING] Setting OMP_NUM_THREADS environment variable for each process to be 1 in default, to avoid your system being overloaded, please further tune the variable for optimal performance in your application as needed. 
+[2025-11-11 10:53:01,283] torch.distributed.run: [WARNING] *****************************************
+/home/xijiawen/code/rgbtvg/RGBTVG/models/clip/clip.py:6: UserWarning: pkg_resources is deprecated as an API. See https://setuptools.pypa.io/en/latest/pkg_resources.html. The pkg_resources package is slated for removal as early as 2025-11-30. Refrain from using this package or pin to Setuptools<81.
+  from pkg_resources import packaging
+/home/xijiawen/code/rgbtvg/RGBTVG/models/clip/clip.py:6: UserWarning: pkg_resources is deprecated as an API. See https://setuptools.pypa.io/en/latest/pkg_resources.html. The pkg_resources package is slated for removal as early as 2025-11-30. Refrain from using this package or pin to Setuptools<81.
+  from pkg_resources import packaging
+| distributed init (rank 1): env://
+| distributed init (rank 0): env://
+git:
+  sha: 98f4a1d7ef7255e0eecf5a63a86b57e17cad337d, status: has uncommited changes, branch: main
+
+### INFO ### torch.backends.cudnn.benchmark = False
+model_config = beit3_large_patch16_224_grounding
+number of head params:  3152900
+number of requires_grad params:  679002117
+number of all params:  679002117
+  0%|          | 0/12 [00:00<?, ?it/s]Missing keys when loading resume model: 
+ []
+Unexpected additional keys in resume model: 
+ []
+
+Current model training epoch is:  14
+  0%|          | 0/12 [00:00<?, ?it/s]  8%|▊         | 1/12 [00:01<00:18,  1.68s/it]  8%|▊         | 1/12 [00:01<00:20,  1.86s/it] 17%|█▋        | 2/12 [00:01<00:08,  1.16it/s] 17%|█▋        | 2/12 [00:02<00:09,  1.06it/s] 25%|██▌       | 3/12 [00:02<00:05,  1.65it/s] 25%|██▌       | 3/12 [00:02<00:05,  1.54it/s] 33%|███▎      | 4/12 [00:02<00:03,  2.06it/s] 42%|████▏     | 5/12 [00:02<00:02,  2.38it/s] 33%|███▎      | 4/12 [00:02<00:04,  1.91it/s] 50%|█████     | 6/12 [00:03<00:02,  2.62it/s] 42%|████▏     | 5/12 [00:03<00:03,  2.25it/s] 58%|█████▊    | 7/12 [00:03<00:01,  2.81it/s] 50%|█████     | 6/12 [00:03<00:02,  2.51it/s] 58%|█████▊    | 7/12 [00:03<00:01,  2.73it/s] 67%|██████▋   | 8/12 [00:03<00:01,  2.92it/s] 67%|██████▋   | 8/12 [00:04<00:01,  2.88it/s] 75%|███████▌  | 9/12 [00:04<00:01,  3.00it/s] 75%|███████▌  | 9/12 [00:04<00:01,  2.99it/s] 83%|████████▎ | 10/12 [00:04<00:00,  3.08it/s] 83%|████████▎ | 10/12 [00:04<00:00,  3.08it/s] 92%|█████████▏| 11/12 [00:04<00:00,  3.14it/s]100%|██████████| 12/12 [00:04<00:00,  3.53it/s] 92%|█████████▏| 11/12 [00:04<00:00,  3.14it/s]100%|██████████| 12/12 [00:05<00:00,  3.45it/s]100%|██████████| 12/12 [00:05<00:00,  2.25it/s]
+100%|██████████| 12/12 [00:05<00:00,  2.16it/s]
+accuracy2:  0.801909307875895
+Testing time 0:00:05
+{'test_model:': '../dataset_and_pretrain_model/pretrain_model/pretrained_weights/oneref/l_rec_224.pth', 'testA_set_accuracy': 0.801909307875895}
+/home/xijiawen/anaconda3/envs/rgbtvg/lib/python3.9/site-packages/torch/distributed/launch.py:183: FutureWarning: The module torch.distributed.launch is deprecated
+and will be removed in future. Use torchrun.
+Note that --use-env is set by default in torchrun.
+If your script expects `--local-rank` argument to be set, please
+change it to read from `os.environ['LOCAL_RANK']` instead. See 
+https://pytorch.org/docs/stable/distributed.html#launch-utility for 
+further instructions
+
+  warnings.warn(
+[2025-11-11 10:53:48,553] torch.distributed.run: [WARNING] 
+[2025-11-11 10:53:48,553] torch.distributed.run: [WARNING] *****************************************
+[2025-11-11 10:53:48,553] torch.distributed.run: [WARNING] Setting OMP_NUM_THREADS environment variable for each process to be 1 in default, to avoid your system being overloaded, please further tune the variable for optimal performance in your application as needed. 
+[2025-11-11 10:53:48,553] torch.distributed.run: [WARNING] *****************************************
+/home/xijiawen/code/rgbtvg/RGBTVG/models/clip/clip.py:6: UserWarning: pkg_resources is deprecated as an API. See https://setuptools.pypa.io/en/latest/pkg_resources.html. The pkg_resources package is slated for removal as early as 2025-11-30. Refrain from using this package or pin to Setuptools<81.
+  from pkg_resources import packaging
+/home/xijiawen/code/rgbtvg/RGBTVG/models/clip/clip.py:6: UserWarning: pkg_resources is deprecated as an API. See https://setuptools.pypa.io/en/latest/pkg_resources.html. The pkg_resources package is slated for removal as early as 2025-11-30. Refrain from using this package or pin to Setuptools<81.
+  from pkg_resources import packaging
+| distributed init (rank 1): env://
+| distributed init (rank 0): env://
+git:
+  sha: 98f4a1d7ef7255e0eecf5a63a86b57e17cad337d, status: has uncommited changes, branch: main
+
+### INFO ### torch.backends.cudnn.benchmark = False
+model_config = beit3_large_patch16_224_grounding
+number of head params:  3152900
+number of requires_grad params:  679002117
+number of all params:  679002117
+  0%|          | 0/9 [00:00<?, ?it/s]Missing keys when loading resume model: 
+ []
+Unexpected additional keys in resume model: 
+ []
+
+Current model training epoch is:  14
+  0%|          | 0/9 [00:00<?, ?it/s] 11%|█         | 1/9 [00:01<00:12,  1.62s/it] 22%|██▏       | 2/9 [00:01<00:05,  1.20it/s] 33%|███▎      | 3/9 [00:02<00:03,  1.72it/s] 44%|████▍     | 4/9 [00:02<00:02,  2.16it/s] 56%|█████▌    | 5/9 [00:02<00:01,  2.52it/s] 11%|█         | 1/9 [00:02<00:16,  2.08s/it] 67%|██████▋   | 6/9 [00:03<00:01,  2.80it/s] 22%|██▏       | 2/9 [00:02<00:07,  1.04s/it] 78%|███████▊  | 7/9 [00:03<00:00,  3.00it/s] 33%|███▎      | 3/9 [00:02<00:04,  1.43it/s] 89%|████████▉ | 8/9 [00:03<00:00,  3.17it/s] 44%|████▍     | 4/9 [00:02<00:02,  1.85it/s]100%|██████████| 9/9 [00:03<00:00,  3.39it/s] 56%|█████▌    | 5/9 [00:03<00:01,  2.21it/s]100%|██████████| 9/9 [00:04<00:00,  2.13it/s]
+ 67%|██████▋   | 6/9 [00:03<00:01,  2.45it/s] 78%|███████▊  | 7/9 [00:03<00:00,  2.68it/s] 89%|████████▉ | 8/9 [00:04<00:00,  2.88it/s]100%|██████████| 9/9 [00:04<00:00,  3.10it/s]100%|██████████| 9/9 [00:04<00:00,  1.86it/s]
+accuracy2:  0.3609375
+Testing time 0:00:04
+{'test_model:': '../dataset_and_pretrain_model/pretrain_model/pretrained_weights/oneref/l_rec_224.pth', 'testB_set_accuracy': 0.3609375}
+/home/xijiawen/anaconda3/envs/rgbtvg/lib/python3.9/site-packages/torch/distributed/launch.py:183: FutureWarning: The module torch.distributed.launch is deprecated
+and will be removed in future. Use torchrun.
+Note that --use-env is set by default in torchrun.
+If your script expects `--local-rank` argument to be set, please
+change it to read from `os.environ['LOCAL_RANK']` instead. See 
+https://pytorch.org/docs/stable/distributed.html#launch-utility for 
+further instructions
+
+  warnings.warn(
+[2025-11-11 10:54:40,692] torch.distributed.run: [WARNING] 
+[2025-11-11 10:54:40,692] torch.distributed.run: [WARNING] *****************************************
+[2025-11-11 10:54:40,692] torch.distributed.run: [WARNING] Setting OMP_NUM_THREADS environment variable for each process to be 1 in default, to avoid your system being overloaded, please further tune the variable for optimal performance in your application as needed. 
+[2025-11-11 10:54:40,692] torch.distributed.run: [WARNING] *****************************************
+/home/xijiawen/code/rgbtvg/RGBTVG/models/clip/clip.py:6: UserWarning: pkg_resources is deprecated as an API. See https://setuptools.pypa.io/en/latest/pkg_resources.html. The pkg_resources package is slated for removal as early as 2025-11-30. Refrain from using this package or pin to Setuptools<81.
+  from pkg_resources import packaging
+/home/xijiawen/code/rgbtvg/RGBTVG/models/clip/clip.py:6: UserWarning: pkg_resources is deprecated as an API. See https://setuptools.pypa.io/en/latest/pkg_resources.html. The pkg_resources package is slated for removal as early as 2025-11-30. Refrain from using this package or pin to Setuptools<81.
+  from pkg_resources import packaging
+| distributed init (rank 0): env://
+| distributed init (rank 1): env://
+git:
+  sha: 98f4a1d7ef7255e0eecf5a63a86b57e17cad337d, status: has uncommited changes, branch: main
+
+### INFO ### torch.backends.cudnn.benchmark = False
+model_config = beit3_large_patch16_224_grounding
+number of head params:  3152900
+number of requires_grad params:  679002117
+number of all params:  679002117
+  0%|          | 0/14 [00:00<?, ?it/s]Missing keys when loading resume model: 
+ []
+Unexpected additional keys in resume model: 
+ []
+
+Current model training epoch is:  14
+  0%|          | 0/14 [00:00<?, ?it/s]  7%|▋         | 1/14 [00:01<00:23,  1.80s/it]  7%|▋         | 1/14 [00:01<00:24,  1.88s/it] 14%|█▍        | 2/14 [00:02<00:10,  1.10it/s] 21%|██▏       | 3/14 [00:02<00:06,  1.61it/s] 14%|█▍        | 2/14 [00:02<00:11,  1.06it/s] 29%|██▊       | 4/14 [00:02<00:04,  2.05it/s] 21%|██▏       | 3/14 [00:02<00:07,  1.55it/s] 36%|███▌      | 5/14 [00:02<00:03,  2.39it/s] 29%|██▊       | 4/14 [00:02<00:05,  1.96it/s] 43%|████▎     | 6/14 [00:03<00:02,  2.69it/s] 36%|███▌      | 5/14 [00:03<00:03,  2.31it/s] 50%|█████     | 7/14 [00:03<00:02,  2.92it/s] 43%|████▎     | 6/14 [00:03<00:03,  2.60it/s] 57%|█████▋    | 8/14 [00:03<00:01,  3.10it/s] 50%|█████     | 7/14 [00:03<00:02,  2.82it/s] 64%|██████▍   | 9/14 [00:04<00:01,  3.22it/s] 57%|█████▋    | 8/14 [00:03<00:02,  2.99it/s] 71%|███████▏  | 10/14 [00:04<00:01,  3.32it/s] 64%|██████▍   | 9/14 [00:04<00:01,  3.11it/s] 79%|███████▊  | 11/14 [00:04<00:00,  3.39it/s] 71%|███████▏  | 10/14 [00:04<00:01,  3.20it/s] 86%|████████▌ | 12/14 [00:04<00:00,  3.43it/s] 79%|███████▊  | 11/14 [00:04<00:00,  3.29it/s] 93%|█████████▎| 13/14 [00:05<00:00,  3.47it/s] 86%|████████▌ | 12/14 [00:05<00:00,  3.34it/s]100%|██████████| 14/14 [00:05<00:00,  3.84it/s] 93%|█████████▎| 13/14 [00:05<00:00,  3.38it/s]100%|██████████| 14/14 [00:05<00:00,  2.47it/s]
+100%|██████████| 14/14 [00:05<00:00,  3.74it/s]100%|██████████| 14/14 [00:05<00:00,  2.40it/s]
+accuracy2:  0.17038539553752535
+Testing time 0:00:06
+{'test_model:': '../dataset_and_pretrain_model/pretrain_model/pretrained_weights/oneref/l_rec_224.pth', 'testC_set_accuracy': 0.17038539553752535}
+
+Training + Evaluation finished. Final checkpoint: ../dataset_and_pretrain_model/pretrain_model/pretrained_weights/oneref/l_rec_224.pth

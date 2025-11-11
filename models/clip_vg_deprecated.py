@@ -3,7 +3,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 from .vl_transformer import build_vl_transformer
 
-from .clip import *
+from .clip_vg_clip import *
 from torchvision.transforms import Resize
 from utils.misc import (NestedTensor, nested_tensor_from_tensor_list)
 from collections import OrderedDict
@@ -133,21 +133,199 @@ class TextEncoder_modified(nn.Module):
 
         return x
 
+
+class ML_CLIP_VG(nn.Module):
+    def __init__(self, args):
+        super(ML_CLIP_VG, self).__init__()
+        print("This is the ML_CLIP_VG model.")
+        # CLIP Model name: ['ViT-B/32', 'ViT-B/16', 'ViT-L/14', 'ViT-L/14@336px']
+        if (args.model == "ViT-L/14"):
+            print("init ViT-L/14")
+            self.clip, _ = clip.load("ViT-L/14", device=args.device)
+            self.extract_layer = [0, 7, 15, 23]
+            self.patch_size = 14
+        elif (args.model == "ViT-B/32"):
+            print("init ViT-B/32")
+            self.clip, _ = clip.load("ViT-B/32", device=args.device)
+            self.extract_layer = [0, 3, 7, 11]
+            self.patch_size = 32
+        else:  # default
+            print("init ViT-B/16")
+            self.clip, _ = clip.load("ViT-B/16", device=args.device)
+            self.extract_layer = [0, 3, 7, 11]
+            self.patch_size = 16
+
+        for parameter in self.clip.parameters():
+            parameter.requires_grad_(False)
+
+        hidden_dim = self.clip.transformer.width
+        self.visu_proj = nn.Linear(512, hidden_dim)
+        self.text_proj = nn.Linear(self.clip.transformer.width, hidden_dim)
+        self.reg_token = nn.Embedding(1, hidden_dim)
+        self.imsize = args.imsize
+        self.num_visu_token = int((self.imsize / self.patch_size) ** 2)
+        self.num_text_token = args.max_query_len
+        num_total = self.num_visu_token + 1 + self.num_text_token + 1  # VISU token + [cls] + TEXT token + [REG]token
+        self.vl_pos_embed = nn.Embedding(num_total, hidden_dim)
+
+        self.vl_transformer = build_vl_transformer(args)
+
+        self.image_encoder_clip_vg = MultiLevel_ImageEncoder_modified(self.clip.visual, self.extract_layer)
+        self.text_encoder_clip_vg = TextEncoder_modified(self.clip)
+        self.bbox_embed = MLP(hidden_dim, hidden_dim, 4, 3)
+        self.ml_visu_proj = nn.Linear(len(self.extract_layer) * self.clip.visual.transformer.width, hidden_dim)
+
+    def tensorize_inputs(self, images: NestedTensor, texts: NestedTensor):
+        image_tensors = images.tensors
+        texts_tensors = texts.tensors
+
+        return image_tensors, texts_tensors
+
+    def get_masks(self, images: NestedTensor, texts: NestedTensor):
+        torch_resize = Resize([int(self.imsize / self.patch_size), int(self.imsize / self.patch_size)])
+        visu_masks = torch_resize(images.mask)  # 14 * 14 = 196， or， 16 * 16 = 256
+        visu_masks = visu_masks.to(torch.bool)
+        visu_masks = visu_masks.flatten(1)  # visu_mask：B*L, torch.Size([B, 196])
+        text_masks = texts.mask.to(torch.bool)
+        text_masks = ~text_masks
+        text_masks = text_masks.flatten(1)  # text_mask：B*L, torch.Size([B, 77])
+        assert text_masks is not None
+
+        return visu_masks, text_masks
+
+    def forward(self, img_data, text_data):
+        batch_size = img_data.tensors.shape[0]
+        image_tensors, text_tensors = self.tensorize_inputs(img_data, text_data)
+        image_features = self.image_encoder_clip_vg(image_tensors.type(self.clip.dtype))  # B * 197 * 512
+        text_features = self.text_encoder_clip_vg(text_tensors)  # B * 77 * 512
+        visu_src = self.ml_visu_proj(image_features.float())  # L B 4H -> L B H
+        text_src = self.text_proj(text_features.float())  # B * 77 * 512
+        # permute BxLenxC to LenxBxC
+        visu_src = visu_src.permute(1, 0, 2)  # 197 * 4 * 512
+        text_src = text_src.permute(1, 0, 2)  # 77 * 4 * 512
+        # target regression token
+        tgt_src = self.reg_token.weight.unsqueeze(1).repeat(1, batch_size, 1)  # 1 * B * hidden_dim
+        # (1 + 77 + 197) * B * 512 = 275 * B * 512; VIT-L/14: (1 + 77 + 257) * B * 768
+        vl_src = torch.cat([tgt_src, text_src, visu_src], dim=0)
+        visu_mask, text_mask = self.get_masks(img_data, text_data)
+        tgt_mask = torch.zeros((batch_size, 1)).to(tgt_src.device).to(torch.bool)
+        cls_mask = torch.zeros((batch_size, 1)).to(tgt_src.device).to(torch.bool)
+        vl_mask = torch.cat([tgt_mask, text_mask, cls_mask, visu_mask], dim=1)
+        # (1 + 77 + 1 + 196) * B * H = 275 * B * 512
+        vl_pos = self.vl_pos_embed.weight.unsqueeze(1).repeat(1, batch_size, 1)
+        vg_hs = self.vl_transformer(vl_src, vl_mask, vl_pos)  # (1+L+N)xBxC
+        vg_hs = vg_hs[0]
+        pred_box = self.bbox_embed(vg_hs).sigmoid()
+
+        return pred_box
+
+
+# TODO: Add learnable prompt for ML_CLIP_VG, benefit for the following researchers.
+#  It's observed that has several performance gains on RefCOCOg.
+class ML_CLIP_VG_PROMPT(nn.Module):
+    def __init__(self, args):
+        super(ML_CLIP_VG_PROMPT, self).__init__()
+        print("This is the ML_CLIP_VG_PROMPT model.")
+        if (args.model == "ViT-L/14"):
+            print("init ViT-L/14")
+            self.clip, _ = clip.load("ViT-L/14", device=args.device)
+            self.extract_layer = [0, 7, 15, 23]
+            self.patch_size = 14
+        elif (args.model == "ViT-B/32"):
+            print("init ViT-B/32")
+            self.clip, _ = clip.load("ViT-B/32", device=args.device)
+            self.extract_layer = [0, 3, 7, 11]
+            self.patch_size = 32
+        else:  # default
+            print("init ViT-B/16")
+            self.clip, _ = clip.load("ViT-B/16", device=args.device)
+            self.extract_layer = [0, 3, 7, 11]
+            self.patch_size = 16
+
+        for parameter in self.clip.parameters():
+            parameter.requires_grad_(False)
+
+        hidden_dim = self.clip.transformer.width
+        self.visu_proj = nn.Linear(512, hidden_dim)
+        self.text_proj = nn.Linear(self.clip.transformer.width, hidden_dim)
+        self.reg_token = nn.Embedding(1, hidden_dim)
+
+        self.prompt_length = 6  # 1 + 5
+        prompt_init_vector = [49406, 3797,  4341,   851, 17436,   531]  # "fine region corresponds to" initial
+        language_prompt = torch.Tensor(prompt_init_vector).to(args.device)
+        self.language_prompt = nn.Parameter(language_prompt)
+        self.language_prompt.requires_grad_(True)
+
+        self.imsize = args.imsize
+        self.num_visu_token = int((self.imsize / self.patch_size) ** 2)
+        self.num_text_token = args.max_query_len
+        num_total = self.num_visu_token + 1 + self.num_text_token + 1  # visu token + [cls] + text token + [REG]token
+        self.vl_pos_embed = nn.Embedding(num_total, hidden_dim)
+
+        self.vl_transformer = build_vl_transformer(args)
+        self.bbox_embed = MLP(hidden_dim, hidden_dim, 4, 3)
+        self.image_encoder_clip_vg = MultiLevel_ImageEncoder_modified(self.clip.visual, self.extract_layer)
+        self.text_encoder_clip_vg = TextEncoder_modified(self.clip)
+        self.ml_visu_proj = nn.Linear(len(self.extract_layer) * self.clip.visual.transformer.width, hidden_dim)
+
+    def tensorize_inputs(self, images: NestedTensor, texts: NestedTensor):
+        image_tensors = images.tensors
+        texts_tensors = texts.tensors
+
+        return image_tensors, texts_tensors
+
+    def get_masks(self, images: NestedTensor, texts: NestedTensor):
+        torch_resize = Resize([int(self.imsize / self.patch_size), int(self.imsize / self.patch_size)])
+        visu_masks = torch_resize(images.mask)
+        visu_masks = visu_masks.to(torch.bool)
+        visu_masks = visu_masks.flatten(1)  # visu_mask：B*L, torch.Size([B, 196])
+        # support learnable prompt
+        batch_size = texts.tensors.shape[0]
+        prompt_mask = torch.ones((batch_size, self.prompt_length)).to(texts.tensors.device)
+        text_masks = torch.cat([prompt_mask, texts.mask], dim=1)[:, :self.num_text_token]
+        text_masks = text_masks.to(torch.bool)
+        text_masks = ~text_masks
+        text_masks = text_masks.flatten(1)
+        assert text_masks is not None
+
+        return visu_masks, text_masks
+
+    def forward(self, img_data, text_data):
+        batch_size = img_data.tensors.shape[0]  # 得到batch_size
+        image_tensors, text_tokens = self.tensorize_inputs(img_data, text_data)
+        image_features = self.image_encoder_clip_vg(image_tensors.type(self.clip.dtype))  # B * 197 * 512
+        text_prompt = self.language_prompt.repeat(batch_size, 1).long()  # B * 5 * hidden_dim
+        text_tokens = torch.cat([text_prompt, text_tokens], dim=1)[:, :self.num_text_token]
+        text_features = self.text_encoder_clip_vg(text_tokens)  # B * 77 * 512
+
+        visu_src = self.ml_visu_proj(image_features.float())  # L B 4H -> L B H
+        text_src = self.text_proj(text_features.float())
+        visu_src = visu_src.permute(1, 0, 2)  # 197 * 4 * 512
+        text_src = text_src.permute(1, 0, 2)  # 77 * 4 * 512
+        tgt_src = self.reg_token.weight.unsqueeze(1).repeat(1, batch_size, 1)  # 1 * B * hidden_dim
+        vl_src = torch.cat([tgt_src, text_src, visu_src], dim=0)
+        visu_mask, text_mask = self.get_masks(img_data, text_data)
+
+        tgt_mask = torch.zeros((batch_size, 1)).to(tgt_src.device).to(torch.bool)
+        cls_mask = torch.zeros((batch_size, 1)).to(tgt_src.device).to(torch.bool)
+        vl_mask = torch.cat([tgt_mask, text_mask, cls_mask, visu_mask], dim=1)
+        vl_pos = self.vl_pos_embed.weight.unsqueeze(1).repeat(1, batch_size, 1)
+        vg_hs = self.vl_transformer(vl_src, vl_mask, vl_pos)  # (1+L+N)xBxC
+        vg_hs = vg_hs[0]
+        pred_box = self.bbox_embed(vg_hs).sigmoid()
+
+        return pred_box
+
+
 # TODO: We provide the last layer feature version benefit for the following researchers to perform ablation study.
 class CLIP_VG(nn.Module):
     def __init__(self, args):
         super(CLIP_VG, self).__init__()
-        self.args= args
-        if args.model == "ViT-B/16":
-            print("init CLIP ViT-B/16")
-            self.clip, _ = clip.load(args, "ViT-B/16")
-            self.patch_size = 16
-        self.imsize = args.imsize
+        self.clip, _ = clip.load("ViT-B/16", device=args.device)
+        for parameter in self.clip.parameters():
+            parameter.requires_grad_(False)
         hidden_dim = args.vl_hidden_dim
-        if args.modality=='rgbt':
-            self.visu_proj = nn.Linear(512*2, hidden_dim)
-        else:
-            self.visu_proj = nn.Linear(512, hidden_dim)
+        self.visu_proj = nn.Linear(512, hidden_dim)
         self.text_proj = nn.Linear(512, hidden_dim)
         self.reg_token = nn.Embedding(1, hidden_dim)
 
@@ -166,47 +344,29 @@ class CLIP_VG(nn.Module):
         return image_tensors, texts_tensors
 
     def get_masks(self, images: NestedTensor, texts: NestedTensor):
-        # torch_resize = Resize([14, 14])
-        torch_resize = Resize([int(self.imsize / self.patch_size), int(self.imsize / self.patch_size)])  # 14 * 14 = 196， or， 16 * 16 = 256
+        torch_resize = Resize([14, 14])
         visu_masks = torch_resize(images.mask)
         visu_masks = visu_masks.to(torch.bool)
-        visu_masks = visu_masks.flatten(1)  # visu_mask：B*L, torch.Size([B, 196])
-        # text mask follow bert process
-        # text_masks = texts.mask.to(torch.bool)
-        # text_masks = ~text_masks
-        # text_masks = text_masks.flatten(1)
-        # assert text_masks is not None
+        visu_masks = visu_masks.flatten(1)
+        text_masks = texts.mask.to(torch.bool)
+        text_masks = ~text_masks
+        text_masks = text_masks.flatten(1)
+        assert text_masks is not None
 
-        return visu_masks
+        return visu_masks, text_masks
 
-    def encode_text(self, text_data, device=None):
-        text_tensors = clip.tokenize(text_data, context_length=77, truncate=True).to(device)  # 4 * 77
-        text_mask = text_tensors.eq(0).bool()  # 4 * 77, The ones that need masking are 1.
-        return text_tensors, text_mask
     def forward(self, img_data, text_data):
-        if self.args.modality =="rgbt":
-            image_tensors_ir=img_data.tensors[:,3:,:,:].repeat(1,3,1,1)
-            img_data_ir_mask=img_data.mask
-            img_data_ir = NestedTensor(image_tensors_ir,img_data_ir_mask)
-            img_data.tensors=img_data.tensors[:,:3,:,:]
-            image_features_ir = self.clip.encode_image(image_tensors_ir)  # B * 197 * 512
         batch_size = img_data.tensors.shape[0]
-        image_tensors = img_data.tensors
-        text_tensors, text_mask = self.encode_text(text_data, img_data.tensors.device) # 4 * 77
-        # image_tensors, text_tensors = self.tensorize_inputs(img_data, text_data)
+        image_tensors, text_tensors = self.tensorize_inputs(img_data, text_data)
         image_features = self.clip.encode_image(image_tensors)  # B * 197 * 512
         text_features = self.clip.encode_text(text_tensors)  # B * 77 * 512
-
-        if self.args.modality =="rgbt":
-            visu_src = self.visu_proj(torch.cat([image_features,image_features_ir],dim=2).float())
-        else:
-            visu_src = self.visu_proj(image_features.float())
+        visu_src = self.visu_proj(image_features.float())
         text_src = self.text_proj(text_features.float())
         visu_src = visu_src.permute(1, 0, 2)  # 197 * 4 * 512
         text_src = text_src.permute(1, 0, 2)  # 77 * 4 * 512
         tgt_src = self.reg_token.weight.unsqueeze(1).repeat(1, batch_size, 1)  # 1 * B * hidden_dim
         vl_src = torch.cat([tgt_src, text_src, visu_src], dim=0)
-        visu_mask = self.get_masks(img_data, text_data)
+        visu_mask, text_mask = self.get_masks(img_data, text_data)
         tgt_mask = torch.zeros((batch_size, 1)).to(tgt_src.device).to(torch.bool)
         cls_mask = torch.zeros((batch_size, 1)).to(tgt_src.device).to(torch.bool)
         vl_mask = torch.cat([tgt_mask, text_mask, cls_mask, visu_mask], dim=1)

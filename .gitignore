@@ -8,3 +8,4 @@ output_evluation
 output_retraining
 train.sh
 train1.sh
+oneshot_log
