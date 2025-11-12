@@ -61,7 +61,7 @@ def get_normalization_params(args):
     return np.array(mean), np.array(std)
 
 
-def denormalize_image(img_tensor, mean, std):
+def denormalize_image(img_tensor, mean, std, modality='rgb'):
     """反归一化图像张量"""
     img = img_tensor.cpu().numpy()
     if len(img.shape) == 4:  # batch dimension
@@ -75,6 +75,13 @@ def denormalize_image(img_tensor, mean, std):
     # 如果是RGBT，只取前3个通道用于可视化
     if img.shape[2] == 4:
         img = img[:, :, :3]
+    
+    # 处理IR图像：转换为灰度显示
+    if modality == 'ir' and img.shape[2] == 3:
+        # 取第一个通道作为灰度图
+        gray_img = np.ascontiguousarray(img[:, :, 0])
+        # 为了绘制彩色bbox，转换回3通道
+        img = cv2.cvtColor(gray_img, cv2.COLOR_GRAY2RGB)
     
     return img
 
@@ -100,7 +107,7 @@ def visualize_oneref_result(args, img_tensor, text, pred_bbox, gt_bbox,
     mean, std = get_normalization_params(args)
     
     # 反归一化图像
-    img = denormalize_image(img_tensor, mean, std)
+    img = denormalize_image(img_tensor, mean, std, args.modality)
     img_h, img_w = img.shape[:2]
     
     # 创建可视化图像
@@ -260,3 +267,44 @@ def visualize_oneref_batch(args, img_tensors, texts, pred_bboxes, gt_bboxes,
     
     return output_paths
 
+
+def visualize_oneref_pred_only(args, img_tensor, text, pred_bbox, sample_idx=0, output_dir=None):
+    """
+    仅可视化预测框（无GT框）
+    """
+    mean, std = get_normalization_params(args)
+    img = denormalize_image(img_tensor, mean, std, args.modality)
+    img_h, img_w = img.shape[:2]
+
+    vis_img = img.copy()
+
+    imsize = args.imsize
+    if isinstance(pred_bbox, torch.Tensor):
+        pred_bbox_xyxy = xywh2xyxy(pred_bbox.unsqueeze(0))
+        pred_coords = (imsize * pred_bbox_xyxy[0].cpu().numpy()).astype(int)
+    else:
+        pred_bbox_xyxy = xywh2xyxy(torch.tensor(pred_bbox).unsqueeze(0))
+        pred_coords = (imsize * pred_bbox_xyxy[0].cpu().numpy()).astype(int)
+
+    x_min, y_min, x_max, y_max = pred_coords
+    x_min = max(0, min(x_min, img_w - 1))
+    y_min = max(0, min(y_min, img_h - 1))
+    x_max = max(0, min(x_max, img_w - 1))
+    y_max = max(0, min(y_max, img_h - 1))
+
+    # 绘制预测框（绿色），不添加文本
+    cv2.rectangle(vis_img, (x_min, y_min), (x_max, y_max), (0, 255, 0), 2)
+
+    if output_dir is None:
+        output_dir = getattr(args, 'visual_output_dir', './visual_result/oneref')
+    Path(output_dir).mkdir(parents=True, exist_ok=True)
+    
+    # 保存图片（不添加文本）
+    output_path = os.path.join(output_dir, f"oneref_pred_{sample_idx:06d}.jpg")
+    cv2.imwrite(output_path, cv2.cvtColor(vis_img, cv2.COLOR_RGB2BGR))
+    
+    # 保存文本到txt文件
+    txt_path = os.path.join(output_dir, f"oneref_pred_{sample_idx:06d}.txt")
+    with open(txt_path, 'w', encoding='utf-8') as f:
+        f.write(text)
+    return vis_img, output_path

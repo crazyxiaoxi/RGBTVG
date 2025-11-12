@@ -9,3 +9,4 @@ output_retraining
 train.sh
 train1.sh
 oneshot_log
+visual_result
