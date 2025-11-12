@@ -172,7 +172,8 @@ def load_dataset(label_file):
 
 
 def process_image(args, img_path, text, transform):
-    """处理单张图像"""
+    """处理单张图像，返回transform后的图像用于模型推理和原始图像用于可视化"""
+    pil_img_original = None  # 保存原始图像用于可视化
     if args.modality == 'rgbt':
         # 尝试自动配对RGB和IR图像
         if '/rgb/' in img_path:
@@ -188,11 +189,14 @@ def process_image(args, img_path, text, transform):
         # 检查文件是否存在
         if not os.path.exists(rgb_path) or not os.path.exists(ir_path):
             print(f"Warning: RGB or IR image not found: {rgb_path}, {ir_path}")
-            return None, None
+            return None, None, None
         
         # 加载RGB和IR图像
         rgb_img = Image.open(rgb_path).convert('RGB')
         ir_img = Image.open(ir_path).convert('L')
+        
+        # 保存原始RGB图像用于可视化
+        pil_img_original = rgb_img.copy()
         
         # 获取图像尺寸
         w, h = rgb_img.size
@@ -202,14 +206,17 @@ def process_image(args, img_path, text, transform):
         input_dict = {'img': rgb_img, 'ir': ir_img, 'box': full_box_xyxy, 'text': text}
         input_dict = transform(input_dict)
         
-        return input_dict['img'], input_dict['mask']
+        return input_dict['img'], input_dict['mask'], pil_img_original
         
     elif args.modality == 'ir':
         if not os.path.exists(img_path):
             print(f"Warning: Image not found: {img_path}")
-            return None, None
+            return None, None, None
         # IR图像转换为RGB（3通道），与dataloader保持一致
         pil_img = Image.open(img_path).convert('RGB')
+        
+        # 保存原始图像用于可视化
+        pil_img_original = pil_img.copy()
         
         # 获取图像尺寸
         w, h = pil_img.size
@@ -219,12 +226,15 @@ def process_image(args, img_path, text, transform):
         input_dict = {'img': pil_img, 'box': full_box_xyxy, 'text': text}
         input_dict = transform(input_dict)
         
-        return input_dict['img'], input_dict['mask']
+        return input_dict['img'], input_dict['mask'], pil_img_original
     else:  # RGB
         if not os.path.exists(img_path):
             print(f"Warning: Image not found: {img_path}")
-            return None, None
+            return None, None, None
         pil_img = Image.open(img_path).convert('RGB')
+        
+        # 保存原始图像用于可视化
+        pil_img_original = pil_img.copy()
     
     # 获取图像尺寸
     w, h = pil_img.size
@@ -234,45 +244,16 @@ def process_image(args, img_path, text, transform):
     input_dict = {'img': pil_img, 'box': full_box_xyxy, 'text': text}
     input_dict = transform(input_dict)
     
-    return input_dict['img'], input_dict['mask']
+    return input_dict['img'], input_dict['mask'], pil_img_original
 
 
-def save_visualization(args, img_tensor, text, pred_bbox, sample_idx, output_dir):
-    """保存单个可视化结果（图片只显示bbox框，文本保存到txt文件）"""
-    # 获取归一化参数
-    if args.modality == 'rgbt':
-        if args.dataset == 'rgbtvg_flir':
-            mean, std = [0.631, 0.6401, 0.632, 0.5337], [0.2152, 0.227, 0.2439, 0.2562]
-        elif args.dataset == 'rgbtvg_m3fd':
-            mean, std = [0.5013, 0.5067, 0.4923, 0.3264], [0.1948, 0.1989, 0.2117, 0.199]
-        else:
-            mean, std = [0.485, 0.456, 0.406, 0.5], [0.229, 0.224, 0.225, 0.25]
-    elif args.modality == 'ir':
-        mean, std = [0.5], [0.25]
-    else:  # RGB
-        mean, std = [0.485, 0.456, 0.406], [0.229, 0.224, 0.225]
-    
-    # 反归一化
-    img_np = img_tensor.permute(1, 2, 0).cpu().numpy()
-    num_channels = img_np.shape[2]
-    for i in range(min(num_channels, len(mean))):
-        img_np[:, :, i] = img_np[:, :, i] * std[i] + mean[i]
-    img_np = np.clip(img_np * 255, 0, 255).astype(np.uint8)
-    
-    # 处理IR或RGBT图像
-    if args.modality == 'rgbt':
-        # RGBT有4个通道，只用前3个（RGB）可视化
-        vis_img = np.ascontiguousarray(img_np[:, :, :3])
-    elif args.modality == 'ir':
-        # IR图像：取第一个通道作为灰度图显示
-        gray_img = np.ascontiguousarray(img_np[:, :, 0])
-        # 为了绘制彩色bbox，需要转换回3通道
-        vis_img = cv2.cvtColor(gray_img, cv2.COLOR_GRAY2RGB)
-    else:
-        vis_img = np.ascontiguousarray(img_np)
+def save_visualization(args, pil_img_original, text, pred_bbox, sample_idx, output_dir):
+    """保存单个可视化结果（使用原始图像而不是transform后的图像）"""
+    # 直接使用原始图像，不需要反归一化
+    img_np = np.array(pil_img_original)
     
     # 转换bbox到像素坐标
-    h, w = vis_img.shape[:2]
+    h, w = img_np.shape[:2]
     if isinstance(pred_bbox, torch.Tensor):
         pred_bbox = pred_bbox.cpu().numpy()
     
@@ -289,11 +270,11 @@ def save_visualization(args, img_tensor, text, pred_bbox, sample_idx, output_dir
     x_max = max(0, min(x_max, w - 1))
     y_max = max(0, min(y_max, h - 1))
     
-    # 绘制预测框（绿色），不添加文本
-    cv2.rectangle(vis_img, (x_min, y_min), (x_max, y_max), (0, 255, 0), 2)
-    
-    # 保存图片（不添加文本）
     Path(output_dir).mkdir(parents=True, exist_ok=True)
+    
+    # 直接在原始图像上绘制bbox（所有模态都使用RGB图像）
+    vis_img = np.ascontiguousarray(img_np)
+    cv2.rectangle(vis_img, (x_min, y_min), (x_max, y_max), (0, 255, 0), 2)
     output_path = os.path.join(output_dir, f"mmca_pred_{sample_idx:06d}.jpg")
     cv2.imwrite(output_path, cv2.cvtColor(vis_img, cv2.COLOR_RGB2BGR))
     
@@ -355,7 +336,11 @@ def visualize_dataset(args):
         
         try:
             # 处理图像
-            img_tensor, img_mask = process_image(args, img_path, text, transform)
+            result = process_image(args, img_path, text, transform)
+            if result is None or len(result) != 3:
+                fail_count += 1
+                continue
+            img_tensor, img_mask, pil_img_original = result
             
             if img_tensor is None:
                 fail_count += 1
@@ -383,12 +368,11 @@ def visualize_dataset(args):
                 # MMCA模型期望(img_nt, text_nt)
                 pred_boxes = model(img_nt, text_nt)
             
-            # 可视化结果
-            img_t = img_tensor[0].cpu()
+            # 可视化结果（使用原始图像）
             bbox = pred_boxes[0].cpu()
             
             out_path = save_visualization(
-                args, img_t, text, bbox,
+                args, pil_img_original, text, bbox,
                 sample_idx=sample_idx,
                 output_dir=args.output_dir
             )

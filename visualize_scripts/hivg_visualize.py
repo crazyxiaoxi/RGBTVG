@@ -243,19 +243,7 @@ def save_visualization(args, img_tensor, text, pred_bbox, sample_idx, output_dir
     img = (img * std + mean) * 255
     img = np.clip(img, 0, 255).astype(np.uint8)
     
-    # 如果是RGBT，只取前3个通道
-    if img.shape[2] == 4:
-        img = img[:, :, :3]
-    
-    # 处理IR图像：转换为灰度显示
-    if args.modality == 'ir':
-        # 取第一个通道作为灰度图
-        gray_img = np.ascontiguousarray(img[:, :, 0])
-        # 为了绘制彩色bbox，转换回3通道
-        img = cv2.cvtColor(gray_img, cv2.COLOR_GRAY2RGB)
-    
     img_h, img_w = img.shape[:2]
-    vis_img = img.copy()
     
     # 转换边界框
     imsize = args.imsize
@@ -268,13 +256,42 @@ def save_visualization(args, img_tensor, text, pred_bbox, sample_idx, output_dir
     x_max = max(0, min(x_max, img_w - 1))
     y_max = max(0, min(y_max, img_h - 1))
     
-    # 绘制预测框（绿色）
-    cv2.rectangle(vis_img, (x_min, y_min), (x_max, y_max), (0, 255, 0), 2)
-    
-    # 保存图片（不添加文本）
     Path(output_dir).mkdir(parents=True, exist_ok=True)
-    output_path = os.path.join(output_dir, f"hivg_pred_{sample_idx:06d}.jpg")
-    cv2.imwrite(output_path, cv2.cvtColor(vis_img, cv2.COLOR_RGB2BGR))
+    
+    # 处理不同模态的图像保存
+    if args.modality == 'rgbt' and img.shape[2] == 4:
+        # RGBT模态：保存两张图片（RGB彩色 + IR灰度）
+        # 1. 保存RGB彩色图像
+        rgb_img = np.ascontiguousarray(img[:, :, :3])
+        cv2.rectangle(rgb_img, (x_min, y_min), (x_max, y_max), (0, 255, 0), 2)
+        rgb_path = os.path.join(output_dir, f"hivg_pred_{sample_idx:06d}_rgb.jpg")
+        cv2.imwrite(rgb_path, cv2.cvtColor(rgb_img, cv2.COLOR_RGB2BGR))
+        
+        # 2. 保存IR灰度图像
+        ir_img = np.ascontiguousarray(img[:, :, 3])  # 第4个通道是IR
+        ir_img_3ch = cv2.cvtColor(ir_img, cv2.COLOR_GRAY2RGB)  # 转为3通道以绘制彩色bbox
+        cv2.rectangle(ir_img_3ch, (x_min, y_min), (x_max, y_max), (0, 255, 0), 2)
+        ir_path = os.path.join(output_dir, f"hivg_pred_{sample_idx:06d}_ir.jpg")
+        cv2.imwrite(ir_path, cv2.cvtColor(ir_img_3ch, cv2.COLOR_RGB2BGR))
+        
+        output_path = rgb_path  # 返回RGB图像路径作为主要输出
+        
+    elif args.modality == 'ir':
+        # IR图像：取第一个通道作为灰度图显示
+        gray_img = np.ascontiguousarray(img[:, :, 0])
+        vis_img = cv2.cvtColor(gray_img, cv2.COLOR_GRAY2RGB)
+        cv2.rectangle(vis_img, (x_min, y_min), (x_max, y_max), (0, 255, 0), 2)
+        output_path = os.path.join(output_dir, f"hivg_pred_{sample_idx:06d}.jpg")
+        cv2.imwrite(output_path, cv2.cvtColor(vis_img, cv2.COLOR_RGB2BGR))
+        
+    else:  # RGB 或 RGBT但只显示RGB部分
+        if img.shape[2] == 4:
+            vis_img = np.ascontiguousarray(img[:, :, :3])  # 只取RGB部分
+        else:
+            vis_img = img.copy()
+        cv2.rectangle(vis_img, (x_min, y_min), (x_max, y_max), (0, 255, 0), 2)
+        output_path = os.path.join(output_dir, f"hivg_pred_{sample_idx:06d}.jpg")
+        cv2.imwrite(output_path, cv2.cvtColor(vis_img, cv2.COLOR_RGB2BGR))
     
     # 保存文本到txt文件
     txt_path = os.path.join(output_dir, f"hivg_pred_{sample_idx:06d}.txt")

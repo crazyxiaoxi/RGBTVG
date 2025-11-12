@@ -259,20 +259,8 @@ def save_visualization(args, img_tensor, text, pred_bbox, sample_idx, output_dir
         img_np[:, :, i] = img_np[:, :, i] * std[i] + mean[i]
     img_np = np.clip(img_np * 255, 0, 255).astype(np.uint8)
     
-    # 处理IR或RGBT图像
-    if args.modality == 'rgbt':
-        # RGBT有4个通道，只用前3个（RGB）可视化
-        vis_img = np.ascontiguousarray(img_np[:, :, :3])
-    elif args.modality == 'ir':
-        # IR图像：取第一个通道作为灰度图显示
-        gray_img = np.ascontiguousarray(img_np[:, :, 0])
-        # 为了绘制彩色bbox，需要转换回3通道
-        vis_img = cv2.cvtColor(gray_img, cv2.COLOR_GRAY2RGB)
-    else:
-        vis_img = np.ascontiguousarray(img_np)
-    
     # 转换bbox到像素坐标
-    h, w = vis_img.shape[:2]
+    h, w = img_np.shape[:2]
     if isinstance(pred_bbox, torch.Tensor):
         pred_bbox = pred_bbox.cpu().numpy()
     
@@ -289,13 +277,39 @@ def save_visualization(args, img_tensor, text, pred_bbox, sample_idx, output_dir
     x_max = max(0, min(x_max, w - 1))
     y_max = max(0, min(y_max, h - 1))
     
-    # 绘制预测框（绿色），不添加文本
-    cv2.rectangle(vis_img, (x_min, y_min), (x_max, y_max), (0, 255, 0), 2)
-    
-    # 保存图片（不添加文本）
     Path(output_dir).mkdir(parents=True, exist_ok=True)
-    output_path = os.path.join(output_dir, f"transvg_pred_{sample_idx:06d}.jpg")
-    cv2.imwrite(output_path, cv2.cvtColor(vis_img, cv2.COLOR_RGB2BGR))
+    
+    # 处理不同模态的图像保存
+    if args.modality == 'rgbt':
+        # RGBT模态：保存两张图片（RGB彩色 + IR灰度）
+        # 1. 保存RGB彩色图像
+        rgb_img = np.ascontiguousarray(img_np[:, :, :3])
+        cv2.rectangle(rgb_img, (x_min, y_min), (x_max, y_max), (0, 255, 0), 2)
+        rgb_path = os.path.join(output_dir, f"transvg_pred_{sample_idx:06d}_rgb.jpg")
+        cv2.imwrite(rgb_path, cv2.cvtColor(rgb_img, cv2.COLOR_RGB2BGR))
+        
+        # 2. 保存IR灰度图像
+        ir_img = np.ascontiguousarray(img_np[:, :, 3])  # 第4个通道是IR
+        ir_img_3ch = cv2.cvtColor(ir_img, cv2.COLOR_GRAY2RGB)  # 转为3通道以绘制彩色bbox
+        cv2.rectangle(ir_img_3ch, (x_min, y_min), (x_max, y_max), (0, 255, 0), 2)
+        ir_path = os.path.join(output_dir, f"transvg_pred_{sample_idx:06d}_ir.jpg")
+        cv2.imwrite(ir_path, cv2.cvtColor(ir_img_3ch, cv2.COLOR_RGB2BGR))
+        
+        output_path = rgb_path  # 返回RGB图像路径作为主要输出
+        
+    elif args.modality == 'ir':
+        # IR图像：取第一个通道作为灰度图显示
+        gray_img = np.ascontiguousarray(img_np[:, :, 0])
+        vis_img = cv2.cvtColor(gray_img, cv2.COLOR_GRAY2RGB)
+        cv2.rectangle(vis_img, (x_min, y_min), (x_max, y_max), (0, 255, 0), 2)
+        output_path = os.path.join(output_dir, f"transvg_pred_{sample_idx:06d}.jpg")
+        cv2.imwrite(output_path, cv2.cvtColor(vis_img, cv2.COLOR_RGB2BGR))
+        
+    else:  # RGB
+        vis_img = np.ascontiguousarray(img_np)
+        cv2.rectangle(vis_img, (x_min, y_min), (x_max, y_max), (0, 255, 0), 2)
+        output_path = os.path.join(output_dir, f"transvg_pred_{sample_idx:06d}.jpg")
+        cv2.imwrite(output_path, cv2.cvtColor(vis_img, cv2.COLOR_RGB2BGR))
     
     # 保存文本到txt文件
     txt_path = os.path.join(output_dir, f"transvg_pred_{sample_idx:06d}.txt")

@@ -161,6 +161,12 @@ def get_args_parser():
     parser.add_argument('--eval_set', default='test', type=str)  # 'testA', 'testB', 'val'
     parser.add_argument('--eval_model', default='', type=str)
     
+    # visualization options
+    parser.add_argument('--visualize', action='store_true', help='Enable visualization of results')
+    parser.add_argument('--visual_output_dir', default='./visual_result/oneref', type=str, 
+                        help='Directory to save visualization results')
+    parser.add_argument('--visualize_num_samples', default=100, type=int,
+                        help='Number of samples to visualize (0 means visualize all)')
 
     return parser
 

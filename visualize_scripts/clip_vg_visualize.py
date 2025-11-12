@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
-MMCA模型可视化脚本
-用于生成MMCA模型在数据集上的预测结果可视化
+CLIP_VG模型可视化脚本
+用于生成CLIP_VG模型在数据集上的预测结果可视化
 """
 import argparse
 import os
@@ -18,17 +18,17 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
 from models import build_model
 from datasets import make_transforms
 from utils.misc import NestedTensor
-from transformers import BertTokenizer
+from models.clip import clip
 
 
 def get_args_parser():
-    parser = argparse.ArgumentParser('MMCA Visualization', add_help=False)
+    parser = argparse.ArgumentParser('CLIP_VG Visualization', add_help=False)
     
     # 基本参数
     parser.add_argument('--model_checkpoint', required=True, type=str, help='模型checkpoint路径')
     parser.add_argument('--label_file', required=True, type=str, help='数据标注文件路径')
     parser.add_argument('--dataroot', required=True, type=str, help='图像数据根目录')
-    parser.add_argument('--output_dir', default='./visual_result/mmca', type=str, help='输出目录')
+    parser.add_argument('--output_dir', default='./visual_result/clip_vg', type=str, help='输出目录')
     
     # 数据集参数
     parser.add_argument('--dataset', default='rgbtvg_flir', type=str, help='数据集名称')
@@ -59,41 +59,32 @@ def get_args_parser():
     parser.add_argument('--aug_translate', action='store_true')
     
     # 模型参数
-    parser.add_argument('--model_name', type=str, default='MMCA', help='模型名称')
-    parser.add_argument('--bert_enc_num', default=12, type=int)
-    parser.add_argument('--detr_enc_num', default=6, type=int)
-    parser.add_argument('--backbone', default='resnet50', type=str, help='backbone名称')
-    parser.add_argument('--dilation', action='store_true')
-    parser.add_argument('--position_embedding', default='sine', type=str, choices=('sine', 'learned'))
-    parser.add_argument('--enc_layers', default=6, type=int)
-    parser.add_argument('--dec_layers', default=0, type=int)
+    parser.add_argument('--model_name', type=str, default='CLIP_VG', help='模型名称')
+    parser.add_argument('--model', type=str, default='ViT-B/16', help='CLIP模型类型')
     parser.add_argument('--dim_feedforward', default=2048, type=int)
-    parser.add_argument('--hidden_dim', default=256, type=int)
     parser.add_argument('--dropout', default=0.1, type=float)
     parser.add_argument('--nheads', default=8, type=int)
     parser.add_argument('--num_queries', default=100, type=int)
     parser.add_argument('--pre_norm', action='store_true')
     
     # 图像参数
-    parser.add_argument('--imsize', default=640, type=int, help='图像尺寸')
+    parser.add_argument('--imsize', default=224, type=int, help='图像尺寸')
     parser.add_argument('--emb_size', default=512, type=int, help='embedding维度')
     
     # Vision-Language Transformer
-    parser.add_argument('--use_vl_type_embed', action='store_true')
     parser.add_argument('--vl_dropout', default=0.1, type=float)
     parser.add_argument('--vl_nheads', default=8, type=int)
-    parser.add_argument('--vl_hidden_dim', default=256, type=int)
+    parser.add_argument('--vl_hidden_dim', default=512, type=int)
     parser.add_argument('--vl_dim_feedforward', default=2048, type=int)
     parser.add_argument('--vl_enc_layers', default=6, type=int)
     
     # 其他参数
-    parser.add_argument('--max_query_len', default=20, type=int)
-    parser.add_argument('--bert_model', default='bert-base-uncased', type=str)
+    parser.add_argument('--max_query_len', default=77, type=int)
+    parser.add_argument('--prompt', type=str, default='{pseudo_query}', help='Prompt template')
     parser.add_argument('--light', dest='light', default=False, action='store_true')
     parser.add_argument('--gpu_id', default='0', type=str, help='GPU ID')
     
     # Prompt Engineering & Advanced features
-    parser.add_argument('--prompt', type=str, default='', help="Prompt template")
     parser.add_argument('--use_cot_prompt', action='store_true')
     parser.add_argument('--cot_length', type=int, default=0)
     parser.add_argument('--use_contrastive_loss', action='store_true')
@@ -102,7 +93,6 @@ def get_args_parser():
     parser.add_argument('--use_seg_mask', action='store_true')
     parser.add_argument('--retrain', default='', help='retrain from checkpoint')
     parser.add_argument('--adapt_mlp', action='store_true')
-    parser.add_argument('--normalize_before', action='store_true')
     parser.add_argument('--save_hilora_clip', action='store_true')
     parser.add_argument('--hi_lora_stage', default=0, type=int)
     parser.add_argument('--hi_lora_retrain', default='')
@@ -116,7 +106,6 @@ def get_args_parser():
     parser.add_argument('--device', default='cuda', type=str)
     parser.add_argument('--seed', default=13, type=int)
     parser.add_argument('--resume', default='', help='resume from checkpoint')
-    parser.add_argument('--detr_model', default='./saved_models/detr-r50.pth', type=str)
     parser.add_argument('--start_epoch', default=0, type=int)
     parser.add_argument('--num_workers', default=2, type=int)
     parser.add_argument('--world_size', default=1, type=int)
@@ -124,13 +113,15 @@ def get_args_parser():
     parser.add_argument('--eval', dest='eval', default=False, action='store_true')
     parser.add_argument('--eval_set', default='test', type=str)
     parser.add_argument('--eval_model', default='', type=str)
+    parser.add_argument('--normalize_before', action='store_true', help='If true, use normalize_before')
+    parser.add_argument('--distributed', default=False, type=bool, help='distributed training')
     
     return parser
 
 
 def load_model(args, device):
-    """加载MMCA模型"""
-    print(f"Loading model from: {args.model_checkpoint}")
+    """加载CLIP_VG模型"""
+    print(f"Loading CLIP_VG model from: {args.model_checkpoint}")
     
     # 加载checkpoint
     checkpoint = torch.load(args.model_checkpoint, map_location=device)
@@ -146,9 +137,16 @@ def load_model(args, device):
         model_args.start_idx = args.start_idx
         model_args.label_file = args.label_file
         model_args.dataroot = args.dataroot
+        # 确保eval_model参数存在
+        if not hasattr(model_args, 'eval_model'):
+            model_args.eval_model = getattr(args, 'eval_model', '')
         args = model_args  # 使用checkpoint中的配置
     
-    # 构建模型 (MMCA的build_model只返回模型对象，不是元组)
+    # 确保必要的参数存在
+    if not hasattr(args, 'eval_model'):
+        args.eval_model = ''
+    
+    # 构建模型 (CLIP_VG的build_model只返回模型对象，不是元组)
     model = build_model(args)
     model.to(device)
     
@@ -172,7 +170,8 @@ def load_dataset(label_file):
 
 
 def process_image(args, img_path, text, transform):
-    """处理单张图像"""
+    """处理单张图像，返回transform后的图像用于模型推理和原始图像用于可视化"""
+    pil_img_original = None  # 保存原始图像用于可视化
     if args.modality == 'rgbt':
         # 尝试自动配对RGB和IR图像
         if '/rgb/' in img_path:
@@ -188,28 +187,44 @@ def process_image(args, img_path, text, transform):
         # 检查文件是否存在
         if not os.path.exists(rgb_path) or not os.path.exists(ir_path):
             print(f"Warning: RGB or IR image not found: {rgb_path}, {ir_path}")
-            return None, None
+            return None, None, None
         
-        # 加载RGB和IR图像
+        # 加载RGB和IR图像，模仿数据加载器的逻辑
+        import numpy as np
         rgb_img = Image.open(rgb_path).convert('RGB')
-        ir_img = Image.open(ir_path).convert('L')
+        ir_img = Image.open(ir_path)
+        
+        # 保存原始RGB图像用于可视化
+        pil_img_original = rgb_img.copy()
+        
+        # 将RGB和IR合并为4通道图像（与数据加载器一致）
+        np_rgb = np.array(rgb_img)
+        np_ir = np.array(ir_img)
+        if np_ir.ndim == 3:
+            np_ir = np_ir[..., 0]
+        np_ir = np.expand_dims(np_ir, axis=-1)
+        np_combined = np.concatenate([np_rgb, np_ir], axis=-1)
+        rgbt_img = Image.fromarray(np_combined)
         
         # 获取图像尺寸
         w, h = rgb_img.size
         full_box_xyxy = torch.tensor([0.0, 0.0, float(w - 1), float(h - 1)], dtype=torch.float32)
         
-        # 应用变换
-        input_dict = {'img': rgb_img, 'ir': ir_img, 'box': full_box_xyxy, 'text': text}
+        # 使用transform处理RGBT图像，确保使用正确的归一化参数
+        input_dict = {'img': rgbt_img, 'box': full_box_xyxy, 'text': text}
         input_dict = transform(input_dict)
         
-        return input_dict['img'], input_dict['mask']
+        return input_dict['img'], input_dict['mask'], pil_img_original
         
     elif args.modality == 'ir':
         if not os.path.exists(img_path):
             print(f"Warning: Image not found: {img_path}")
-            return None, None
+            return None, None, None
         # IR图像转换为RGB（3通道），与dataloader保持一致
         pil_img = Image.open(img_path).convert('RGB')
+        
+        # 保存原始图像用于可视化
+        pil_img_original = pil_img.copy()
         
         # 获取图像尺寸
         w, h = pil_img.size
@@ -219,12 +234,15 @@ def process_image(args, img_path, text, transform):
         input_dict = {'img': pil_img, 'box': full_box_xyxy, 'text': text}
         input_dict = transform(input_dict)
         
-        return input_dict['img'], input_dict['mask']
+        return input_dict['img'], input_dict['mask'], pil_img_original
     else:  # RGB
         if not os.path.exists(img_path):
             print(f"Warning: Image not found: {img_path}")
-            return None, None
+            return None, None, None
         pil_img = Image.open(img_path).convert('RGB')
+        
+        # 保存原始图像用于可视化
+        pil_img_original = pil_img.copy()
     
     # 获取图像尺寸
     w, h = pil_img.size
@@ -234,45 +252,16 @@ def process_image(args, img_path, text, transform):
     input_dict = {'img': pil_img, 'box': full_box_xyxy, 'text': text}
     input_dict = transform(input_dict)
     
-    return input_dict['img'], input_dict['mask']
+    return input_dict['img'], input_dict['mask'], pil_img_original
 
 
-def save_visualization(args, img_tensor, text, pred_bbox, sample_idx, output_dir):
-    """保存单个可视化结果（图片只显示bbox框，文本保存到txt文件）"""
-    # 获取归一化参数
-    if args.modality == 'rgbt':
-        if args.dataset == 'rgbtvg_flir':
-            mean, std = [0.631, 0.6401, 0.632, 0.5337], [0.2152, 0.227, 0.2439, 0.2562]
-        elif args.dataset == 'rgbtvg_m3fd':
-            mean, std = [0.5013, 0.5067, 0.4923, 0.3264], [0.1948, 0.1989, 0.2117, 0.199]
-        else:
-            mean, std = [0.485, 0.456, 0.406, 0.5], [0.229, 0.224, 0.225, 0.25]
-    elif args.modality == 'ir':
-        mean, std = [0.5], [0.25]
-    else:  # RGB
-        mean, std = [0.485, 0.456, 0.406], [0.229, 0.224, 0.225]
-    
-    # 反归一化
-    img_np = img_tensor.permute(1, 2, 0).cpu().numpy()
-    num_channels = img_np.shape[2]
-    for i in range(min(num_channels, len(mean))):
-        img_np[:, :, i] = img_np[:, :, i] * std[i] + mean[i]
-    img_np = np.clip(img_np * 255, 0, 255).astype(np.uint8)
-    
-    # 处理IR或RGBT图像
-    if args.modality == 'rgbt':
-        # RGBT有4个通道，只用前3个（RGB）可视化
-        vis_img = np.ascontiguousarray(img_np[:, :, :3])
-    elif args.modality == 'ir':
-        # IR图像：取第一个通道作为灰度图显示
-        gray_img = np.ascontiguousarray(img_np[:, :, 0])
-        # 为了绘制彩色bbox，需要转换回3通道
-        vis_img = cv2.cvtColor(gray_img, cv2.COLOR_GRAY2RGB)
-    else:
-        vis_img = np.ascontiguousarray(img_np)
+def save_visualization(args, pil_img_original, text, pred_bbox, sample_idx, output_dir):
+    """保存单个可视化结果（使用原始图像而不是transform后的图像）"""
+    # 直接使用原始图像，不需要反归一化
+    img_np = np.array(pil_img_original)
     
     # 转换bbox到像素坐标
-    h, w = vis_img.shape[:2]
+    h, w = img_np.shape[:2]
     if isinstance(pred_bbox, torch.Tensor):
         pred_bbox = pred_bbox.cpu().numpy()
     
@@ -289,16 +278,16 @@ def save_visualization(args, img_tensor, text, pred_bbox, sample_idx, output_dir
     x_max = max(0, min(x_max, w - 1))
     y_max = max(0, min(y_max, h - 1))
     
-    # 绘制预测框（绿色），不添加文本
-    cv2.rectangle(vis_img, (x_min, y_min), (x_max, y_max), (0, 255, 0), 2)
-    
-    # 保存图片（不添加文本）
     Path(output_dir).mkdir(parents=True, exist_ok=True)
-    output_path = os.path.join(output_dir, f"mmca_pred_{sample_idx:06d}.jpg")
+    
+    # 直接在原始图像上绘制bbox（所有模态都使用RGB图像）
+    vis_img = np.ascontiguousarray(img_np)
+    cv2.rectangle(vis_img, (x_min, y_min), (x_max, y_max), (0, 255, 0), 2)
+    output_path = os.path.join(output_dir, f"clip_vg_pred_{sample_idx:06d}.jpg")
     cv2.imwrite(output_path, cv2.cvtColor(vis_img, cv2.COLOR_RGB2BGR))
     
     # 保存文本到txt文件
-    txt_path = os.path.join(output_dir, f"mmca_pred_{sample_idx:06d}.txt")
+    txt_path = os.path.join(output_dir, f"clip_vg_pred_{sample_idx:06d}.txt")
     with open(txt_path, 'w', encoding='utf-8') as f:
         f.write(text)
     
@@ -314,9 +303,8 @@ def visualize_dataset(args):
     # 加载模型（可能会更新args为checkpoint中的配置）
     model, args = load_model(args, device)
     
-    # 初始化 tokenizer
-    print(f"Loading tokenizer: {args.bert_model}")
-    tokenizer = BertTokenizer.from_pretrained(args.bert_model)
+    # CLIP_VG使用CLIP的内置tokenizer，不需要单独初始化
+    print("Using CLIP's built-in tokenizer")
     
     # 加载数据集
     dataset = load_dataset(args.label_file)
@@ -355,8 +343,11 @@ def visualize_dataset(args):
         
         try:
             # 处理图像
-            img_tensor, img_mask = process_image(args, img_path, text, transform)
-            
+            result = process_image(args, img_path, text, transform)
+            if result is None or len(result) != 3:
+                fail_count += 1
+                continue
+            img_tensor, img_mask, pil_img_original = result
             if img_tensor is None:
                 fail_count += 1
                 continue
@@ -366,29 +357,33 @@ def visualize_dataset(args):
             img_mask = img_mask.unsqueeze(0).to(device)
             img_nt = NestedTensor(img_tensor, img_mask)
             
-            # Tokenize文本
-            encoded = tokenizer.encode_plus(
-                text,
-                max_length=args.max_query_len,
-                padding='max_length',
-                truncation=True,
-                return_tensors='pt'
-            )
-            text_ids = encoded['input_ids'].to(device)  # (1, L)
-            text_mask = encoded['attention_mask'].bool().to(device)  # (1, L)
-            text_nt = NestedTensor(text_ids, ~text_mask)  # BERT期望mask为True表示要mask的位置
+            # CLIP_VG使用CLIP的tokenizer处理文本
+            text_tokens = clip.tokenize([text]).to(device)  # (1, 77)
+            text_nt = NestedTensor(text_tokens, torch.zeros_like(text_tokens, dtype=torch.bool))
             
             # 模型推理
             with torch.no_grad():
-                # MMCA模型期望(img_nt, text_nt)
+                # CLIP_VG模型期望(img_nt, text_nt)
                 pred_boxes = model(img_nt, text_nt)
             
-            # 可视化结果
-            img_t = img_tensor[0].cpu()
+            # # 调试信息（只显示前5个样本）
+            # if idx < 5:
+            #     print(f"\n样本{sample_idx}: {img_filename}")
+            #     print(f"  文本: {text[:50]}...")
+            #     print(f"  预测bbox: {pred_boxes[0].cpu().numpy()}")
+            #     print(f"  GT bbox: {bbox_gt}")
+                
+            #     # 计算与前一个的差异
+            #     if idx > 0 and 'last_pred' in locals():
+            #         diff = abs(pred_boxes[0].cpu().numpy() - last_pred).sum()
+            #         print(f"  与上一个预测差异: {diff}")
+            #     last_pred = pred_boxes[0].cpu().numpy()
+            
+            # 可视化结果（使用原始图像）
             bbox = pred_boxes[0].cpu()
             
             out_path = save_visualization(
-                args, img_t, text, bbox,
+                args, pil_img_original, text, bbox,
                 sample_idx=sample_idx,
                 output_dir=args.output_dir
             )
@@ -410,7 +405,7 @@ def visualize_dataset(args):
 
 
 def main():
-    parser = argparse.ArgumentParser('MMCA Visualization', parents=[get_args_parser()])
+    parser = argparse.ArgumentParser('CLIP_VG Visualization', parents=[get_args_parser()])
     args = parser.parse_args()
     
     visualize_dataset(args)
