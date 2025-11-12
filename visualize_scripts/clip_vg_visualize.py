@@ -152,7 +152,9 @@ def load_model(args, device):
     
     # 加载模型权重
     if 'model' in checkpoint:
-        model.load_state_dict(checkpoint['model'], strict=False)
+        missing_keys, unexpected_keys = model.load_state_dict(checkpoint['model'], strict=False)
+        print(f"Missing keys: {missing_keys}")
+        print(f"Unexpected keys: {unexpected_keys}")
     else:
         model.load_state_dict(checkpoint, strict=False)
     
@@ -171,7 +173,9 @@ def load_dataset(label_file):
 
 def process_image(args, img_path, text, transform):
     """处理单张图像，返回transform后的图像用于模型推理和原始图像用于可视化"""
-    pil_img_original = None  # 保存原始图像用于可视化
+    pil_img_original = None  # 保存原始RGB图像用于可视化
+    pil_img_ir = None  # 保存原始IR图像用于可视化
+    
     if args.modality == 'rgbt':
         # 尝试自动配对RGB和IR图像
         if '/rgb/' in img_path:
@@ -187,34 +191,34 @@ def process_image(args, img_path, text, transform):
         # 检查文件是否存在
         if not os.path.exists(rgb_path) or not os.path.exists(ir_path):
             print(f"Warning: RGB or IR image not found: {rgb_path}, {ir_path}")
-            return None, None, None
+            return None, None, None, None
         
-        # 加载RGB和IR图像，模仿数据加载器的逻辑
-        import numpy as np
-        rgb_img = Image.open(rgb_path).convert('RGB')
-        ir_img = Image.open(ir_path)
-        
-        # 保存原始RGB图像用于可视化
-        pil_img_original = rgb_img.copy()
-        
-        # 将RGB和IR合并为4通道图像（与数据加载器一致）
-        np_rgb = np.array(rgb_img)
-        np_ir = np.array(ir_img)
-        if np_ir.ndim == 3:
+        # 加载RGB和IR图像，完全模仿数据加载器的逻辑
+        img_rgb_path = rgb_path
+        img_ir_path = ir_path
+        img_rgb = Image.open(img_rgb_path).convert("RGB")
+        img_ir = Image.open(img_ir_path)
+        pil_img_original = img_rgb.copy()
+        pil_img_ir = img_ir.copy()
+
+        # 与数据加载器完全一致的处理
+        np_rgb = np.array(img_rgb)
+        np_ir = np.array(img_ir)
+        if np_ir.shape[-1] == 3:
             np_ir = np_ir[..., 0]
         np_ir = np.expand_dims(np_ir, axis=-1)
         np_combined = np.concatenate([np_rgb, np_ir], axis=-1)
-        rgbt_img = Image.fromarray(np_combined)
-        
+        img = Image.fromarray(np_combined)
+
         # 获取图像尺寸
-        w, h = rgb_img.size
+        w, h = img.size
         full_box_xyxy = torch.tensor([0.0, 0.0, float(w - 1), float(h - 1)], dtype=torch.float32)
-        
-        # 使用transform处理RGBT图像，确保使用正确的归一化参数
-        input_dict = {'img': rgbt_img, 'box': full_box_xyxy, 'text': text}
+
+        # 使用transform处理RGBT图像
+        input_dict = {'img': img, 'box': full_box_xyxy, 'text': text}
         input_dict = transform(input_dict)
-        
-        return input_dict['img'], input_dict['mask'], pil_img_original
+
+        return input_dict['img'], input_dict['mask'], pil_img_original, pil_img_ir
         
     elif args.modality == 'ir':
         if not os.path.exists(img_path):
@@ -255,17 +259,17 @@ def process_image(args, img_path, text, transform):
     return input_dict['img'], input_dict['mask'], pil_img_original
 
 
-def save_visualization(args, pil_img_original, text, pred_bbox, sample_idx, output_dir):
-    """保存单个可视化结果（使用原始图像而不是transform后的图像）"""
+def save_visualization(args, pil_img_original, pil_img_ir, text, pred_bbox, sample_idx, output_dir):
+    """保存单个可视化结果（RGBT模态保存RGB+IR两张图片+1个txt）"""
     # 直接使用原始图像，不需要反归一化
     img_np = np.array(pil_img_original)
     
-    # 转换bbox到像素坐标
+    # 转换bbox到像素坐标 - CLIP_VG输出是sigmoid后的归一化坐标(x_center, y_center, w, h)
     h, w = img_np.shape[:2]
     if isinstance(pred_bbox, torch.Tensor):
         pred_bbox = pred_bbox.cpu().numpy()
     
-    # 假设pred_bbox是xywh格式，转换为xyxy
+    # CLIP_VG输出格式是归一化的(x_center, y_center, w, h)
     x_center, y_center, bbox_w, bbox_h = pred_bbox
     x_min = int((x_center - bbox_w / 2) * w)
     y_min = int((y_center - bbox_h / 2) * h)
@@ -280,18 +284,32 @@ def save_visualization(args, pil_img_original, text, pred_bbox, sample_idx, outp
     
     Path(output_dir).mkdir(parents=True, exist_ok=True)
     
-    # 直接在原始图像上绘制bbox（所有模态都使用RGB图像）
-    vis_img = np.ascontiguousarray(img_np)
-    cv2.rectangle(vis_img, (x_min, y_min), (x_max, y_max), (0, 255, 0), 2)
-    output_path = os.path.join(output_dir, f"clip_vg_pred_{sample_idx:06d}.jpg")
-    cv2.imwrite(output_path, cv2.cvtColor(vis_img, cv2.COLOR_RGB2BGR))
+    # 保存RGB图像（带bbox）
+    vis_img_rgb = np.ascontiguousarray(img_np)
+    cv2.rectangle(vis_img_rgb, (x_min, y_min), (x_max, y_max), (0, 255, 0), 2)
+    rgb_path = os.path.join(output_dir, f"clip_vg_pred_{sample_idx:06d}_rgb.jpg")
+    cv2.imwrite(rgb_path, cv2.cvtColor(vis_img_rgb, cv2.COLOR_RGB2BGR))
+    
+    # 如果是RGBT模态，还要保存IR图像（带bbox）
+    if args.modality == 'rgbt' and pil_img_ir is not None:
+        img_ir_np = np.array(pil_img_ir)
+        # 如果IR是单通道，转换为3通道用于可视化
+        if img_ir_np.ndim == 2:
+            img_ir_np = np.stack([img_ir_np] * 3, axis=-1)
+        elif img_ir_np.ndim == 3 and img_ir_np.shape[2] == 1:
+            img_ir_np = np.repeat(img_ir_np, 3, axis=2)
+        
+        vis_img_ir = np.ascontiguousarray(img_ir_np)
+        cv2.rectangle(vis_img_ir, (x_min, y_min), (x_max, y_max), (0, 255, 0), 2)
+        ir_path = os.path.join(output_dir, f"clip_vg_pred_{sample_idx:06d}_ir.jpg")
+        cv2.imwrite(ir_path, cv2.cvtColor(vis_img_ir, cv2.COLOR_RGB2BGR))
     
     # 保存文本到txt文件
     txt_path = os.path.join(output_dir, f"clip_vg_pred_{sample_idx:06d}.txt")
     with open(txt_path, 'w', encoding='utf-8') as f:
         f.write(text)
     
-    return output_path
+    return rgb_path
 
 
 def visualize_dataset(args):
@@ -344,10 +362,23 @@ def visualize_dataset(args):
         try:
             # 处理图像
             result = process_image(args, img_path, text, transform)
-            if result is None or len(result) != 3:
+            if result is None:
                 fail_count += 1
                 continue
-            img_tensor, img_mask, pil_img_original = result
+            
+            # 根据模态解析返回值
+            if args.modality == 'rgbt':
+                if len(result) != 4:
+                    fail_count += 1
+                    continue
+                img_tensor, img_mask, pil_img_original, pil_img_ir = result
+            else:
+                if len(result) != 3:
+                    fail_count += 1
+                    continue
+                img_tensor, img_mask, pil_img_original = result
+                pil_img_ir = None
+            
             if img_tensor is None:
                 fail_count += 1
                 continue
@@ -362,7 +393,7 @@ def visualize_dataset(args):
             from transformers import BertTokenizer
             
             # 使用与训练时相同的tokenizer和参数
-            tokenizer = BertTokenizer.from_pretrained('bert-base-uncased')
+            tokenizer = BertTokenizer.from_pretrained('bert-base-uncased', do_lower_case=True)
             examples = read_examples(text, 0)  # idx=0 for visualization
             features = convert_examples_to_features(
                 examples=examples, seq_length=args.max_query_len, tokenizer=tokenizer)
@@ -377,27 +408,11 @@ def visualize_dataset(args):
             
             # 模型推理
             with torch.no_grad():
-                # CLIP_VG模型期望(img_nt, text_nt)
                 pred_boxes = model(img_nt, text_nt)
-            
-            # # 调试信息（只显示前5个样本）
-            # if idx < 5:
-            #     print(f"\n样本{sample_idx}: {img_filename}")
-            #     print(f"  文本: {text[:50]}...")
-            #     print(f"  预测bbox: {pred_boxes[0].cpu().numpy()}")
-            #     print(f"  GT bbox: {bbox_gt}")
-                
-            #     # 计算与前一个的差异
-            #     if idx > 0 and 'last_pred' in locals():
-            #         diff = abs(pred_boxes[0].cpu().numpy() - last_pred).sum()
-            #         print(f"  与上一个预测差异: {diff}")
-            #     last_pred = pred_boxes[0].cpu().numpy()
-            
-            # 可视化结果（使用原始图像）
             bbox = pred_boxes[0].cpu()
             
             out_path = save_visualization(
-                args, pil_img_original, text, bbox,
+                args, pil_img_original, pil_img_ir, text, bbox,
                 sample_idx=sample_idx,
                 output_dir=args.output_dir
             )

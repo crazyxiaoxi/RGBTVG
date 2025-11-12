@@ -17,7 +17,6 @@ conda activate rgbtvg
 # 定义数据集和模态
 DATASETS=("rgbtvg_flir" "rgbtvg_m3fd" "rgbtvg_mfad")
 MODALITIES=("rgb" "ir" "rgbt")
-
 # 模型路径基础目录
 MODEL_BASE_PATH="/home/xijiawen/code/rgbtvg/dataset_and_pretrain_model/result/clip_vg"
 

@@ -195,8 +195,9 @@ def process_image(args, img_path, text, transform):
         rgb_img = Image.open(rgb_path).convert('RGB')
         ir_img = Image.open(ir_path).convert('L')
         
-        # 保存原始RGB图像用于可视化
+        # 保存原始RGB和IR图像用于可视化
         pil_img_original = rgb_img.copy()
+        pil_img_ir = ir_img.copy()
         
         # 获取图像尺寸
         w, h = rgb_img.size
@@ -206,7 +207,7 @@ def process_image(args, img_path, text, transform):
         input_dict = {'img': rgb_img, 'ir': ir_img, 'box': full_box_xyxy, 'text': text}
         input_dict = transform(input_dict)
         
-        return input_dict['img'], input_dict['mask'], pil_img_original
+        return input_dict['img'], input_dict['mask'], pil_img_original, pil_img_ir
         
     elif args.modality == 'ir':
         if not os.path.exists(img_path):
@@ -247,7 +248,7 @@ def process_image(args, img_path, text, transform):
     return input_dict['img'], input_dict['mask'], pil_img_original
 
 
-def save_visualization(args, pil_img_original, text, pred_bbox, sample_idx, output_dir):
+def save_visualization(args, pil_img_original, pil_img_ir, text, pred_bbox, sample_idx, output_dir):
     """保存单个可视化结果（使用原始图像而不是transform后的图像）"""
     # 直接使用原始图像，不需要反归一化
     img_np = np.array(pil_img_original)
@@ -271,18 +272,42 @@ def save_visualization(args, pil_img_original, text, pred_bbox, sample_idx, outp
     y_max = max(0, min(y_max, h - 1))
     
     Path(output_dir).mkdir(parents=True, exist_ok=True)
-    
-    # 直接在原始图像上绘制bbox（所有模态都使用RGB图像）
-    vis_img = np.ascontiguousarray(img_np)
-    cv2.rectangle(vis_img, (x_min, y_min), (x_max, y_max), (0, 255, 0), 2)
-    output_path = os.path.join(output_dir, f"mmca_pred_{sample_idx:06d}.jpg")
-    cv2.imwrite(output_path, cv2.cvtColor(vis_img, cv2.COLOR_RGB2BGR))
-    
+
+    # 处理不同模态的图像保存
+    if args.modality == 'rgbt':
+        # RGBT模态：保存两张图片（RGB + IR）+ 1个txt文件
+        # 1. 保存RGB图像 + bbox
+        rgb_img = np.array(pil_img_original)
+        cv2.rectangle(rgb_img, (x_min, y_min), (x_max, y_max), (0, 255, 0), 2)
+        rgb_path = os.path.join(output_dir, f"mmca_pred_{sample_idx:06d}_rgb.jpg")
+        cv2.imwrite(rgb_path, cv2.cvtColor(rgb_img, cv2.COLOR_RGB2BGR))
+
+        # 2. 保存IR图像 + bbox
+        if pil_img_ir is not None:
+            ir_img = np.array(pil_img_ir)
+            # 如果IR是灰度图，转为3通道以绘制彩色bbox
+            if len(ir_img.shape) == 2:
+                ir_img_3ch = cv2.cvtColor(ir_img, cv2.COLOR_GRAY2RGB)
+            else:
+                ir_img_3ch = ir_img
+            cv2.rectangle(ir_img_3ch, (x_min, y_min), (x_max, y_max), (0, 255, 0), 2)
+            ir_path = os.path.join(output_dir, f"mmca_pred_{sample_idx:06d}_ir.jpg")
+            cv2.imwrite(ir_path, cv2.cvtColor(ir_img_3ch, cv2.COLOR_RGB2BGR))
+
+        output_path = rgb_path  # 返回RGB图像路径作为主要输出
+
+    else:
+        # RGB/IR模态：保存单张图片
+        vis_img = np.ascontiguousarray(img_np)
+        cv2.rectangle(vis_img, (x_min, y_min), (x_max, y_max), (0, 255, 0), 2)
+        output_path = os.path.join(output_dir, f"mmca_pred_{sample_idx:06d}.jpg")
+        cv2.imwrite(output_path, cv2.cvtColor(vis_img, cv2.COLOR_RGB2BGR))
+
     # 保存文本到txt文件
     txt_path = os.path.join(output_dir, f"mmca_pred_{sample_idx:06d}.txt")
     with open(txt_path, 'w', encoding='utf-8') as f:
         f.write(text)
-    
+
     return output_path
 
 
@@ -337,10 +362,22 @@ def visualize_dataset(args):
         try:
             # 处理图像
             result = process_image(args, img_path, text, transform)
-            if result is None or len(result) != 3:
+            if result is None:
                 fail_count += 1
                 continue
-            img_tensor, img_mask, pil_img_original = result
+            
+            # 根据模态解析返回值
+            if args.modality == 'rgbt':
+                if len(result) != 4:
+                    fail_count += 1
+                    continue
+                img_tensor, img_mask, pil_img_original, pil_img_ir = result
+            else:
+                if len(result) != 3:
+                    fail_count += 1
+                    continue
+                img_tensor, img_mask, pil_img_original = result
+                pil_img_ir = None
             
             if img_tensor is None:
                 fail_count += 1
@@ -376,7 +413,7 @@ def visualize_dataset(args):
             bbox = pred_boxes[0].cpu()
             
             out_path = save_visualization(
-                args, pil_img_original, text, bbox,
+                args, pil_img_original, pil_img_ir, text, bbox,
                 sample_idx=sample_idx,
                 output_dir=args.output_dir
             )
