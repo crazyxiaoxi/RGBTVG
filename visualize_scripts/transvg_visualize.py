@@ -380,17 +380,21 @@ def visualize_dataset(args):
             img_mask = img_mask.unsqueeze(0).to(device)
             img_nt = NestedTensor(img_tensor, img_mask)
             
-            # Tokenize文本
-            encoded = tokenizer.encode_plus(
-                text,
-                max_length=args.max_query_len,
-                padding='max_length',
-                truncation=True,
-                return_tensors='pt'
-            )
-            text_ids = encoded['input_ids'].to(device)  # (1, L)
-            text_mask = encoded['attention_mask'].bool().to(device)  # (1, L)
-            text_nt = NestedTensor(text_ids, ~text_mask)  # BERT期望mask为True表示要mask的位置
+            # TransVG使用BERT tokenizer，完全模拟训练时的数据流程
+            from datasets.data_loader import read_examples, convert_examples_to_features
+            
+            # 使用与训练时相同的tokenizer和参数
+            examples = read_examples(text, 0)  # idx=0 for visualization
+            features = convert_examples_to_features(
+                examples=examples, seq_length=args.max_query_len, tokenizer=tokenizer)
+            
+            word_id = features[0].input_ids
+            word_mask = features[0].input_mask
+            
+            # 完全按照collate_fn的处理方式
+            word_id_tensor = torch.tensor(np.array([word_id]), dtype=torch.long).to(device)  # (1, seq_len)
+            word_mask_tensor = torch.from_numpy(np.array([word_mask])).to(device)  # (1, seq_len)
+            text_nt = NestedTensor(word_id_tensor, word_mask_tensor)  # 注意：这里word_mask直接用，不取反
             
             # 模型推理
             with torch.no_grad():

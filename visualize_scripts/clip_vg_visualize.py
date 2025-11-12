@@ -357,9 +357,23 @@ def visualize_dataset(args):
             img_mask = img_mask.unsqueeze(0).to(device)
             img_nt = NestedTensor(img_tensor, img_mask)
             
-            # CLIP_VG使用CLIP的tokenizer处理文本
-            text_tokens = clip.tokenize([text]).to(device)  # (1, 77)
-            text_nt = NestedTensor(text_tokens, torch.zeros_like(text_tokens, dtype=torch.bool))
+            # CLIP_VG使用BERT tokenizer，完全模拟训练时的数据流程
+            from datasets.data_loader import read_examples, convert_examples_to_features
+            from transformers import BertTokenizer
+            
+            # 使用与训练时相同的tokenizer和参数
+            tokenizer = BertTokenizer.from_pretrained('bert-base-uncased')
+            examples = read_examples(text, 0)  # idx=0 for visualization
+            features = convert_examples_to_features(
+                examples=examples, seq_length=args.max_query_len, tokenizer=tokenizer)
+            
+            word_id = features[0].input_ids
+            word_mask = features[0].input_mask
+            
+            # 完全按照collate_fn的处理方式
+            word_id_tensor = torch.tensor(np.array([word_id]), dtype=torch.long).to(device)  # (1, seq_len)
+            word_mask_tensor = torch.from_numpy(np.array([word_mask])).to(device)  # (1, seq_len)
+            text_nt = NestedTensor(word_id_tensor, word_mask_tensor)  # 注意：这里word_mask直接用，不取反
             
             # 模型推理
             with torch.no_grad():
