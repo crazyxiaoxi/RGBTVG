@@ -26,6 +26,9 @@ from datasets import make_transforms
 from utils.misc import NestedTensor
 from utils.box_utils import xywh2xyxy
 
+# 导入公共可视化工具
+from utils_visualization import process_image, save_pred_visualization, load_dataset
+
 
 def get_args_parser():
     parser = argparse.ArgumentParser('OneRef Visualization Script', add_help=False)
@@ -146,141 +149,6 @@ def get_args_parser():
     return parser
 
 
-# ==================== 可视化工具函数 ====================
-
-def get_normalization_params(args):
-    """根据数据集和模态获取归一化参数"""
-    if args.modality == 'rgbt':
-        if args.dataset == 'rgbtvg_flir':
-            mean = [0.631, 0.6401, 0.632, 0.5337]
-            std = [0.2152, 0.227, 0.2439, 0.2562]
-        elif args.dataset == 'rgbtvg_m3fd':
-            mean = [0.5013, 0.5067, 0.4923, 0.3264]
-            std = [0.1948, 0.1989, 0.2117, 0.199]
-        elif args.dataset == 'rgbtvg_mfad':
-            mean = [0.4733, 0.4695, 0.4622, 0.3393]
-            std = [0.1654, 0.1646, 0.1749, 0.2063]
-        elif args.dataset == 'rgbtvg_mixup':
-            mean = [0.5103, 0.5111, 0.502, 0.3735]
-            std = [0.1926, 0.1973, 0.2091, 0.2289]
-        else:
-            mean = [0.5, 0.5, 0.5, 0.5]
-            std = [0.2, 0.2, 0.2, 0.2]
-    elif args.modality == 'rgb':
-        if args.dataset == 'rgbtvg_flir':
-            mean = [0.631, 0.6401, 0.632]
-            std = [0.2152, 0.227, 0.2439]
-        elif args.dataset == 'rgbtvg_m3fd':
-            mean = [0.5013, 0.5067, 0.4923]
-            std = [0.1948, 0.1989, 0.2117]
-        elif args.dataset == 'rgbtvg_mfad':
-            mean = [0.4733, 0.4695, 0.4622]
-            std = [0.1654, 0.1646, 0.1749]
-        else:
-            mean = [0.485, 0.456, 0.406]
-            std = [0.229, 0.224, 0.225]
-    elif args.modality == 'ir':
-        if args.dataset == 'rgbtvg_flir':
-            mean = [0.5337, 0.5337, 0.5337]
-            std = [0.2562, 0.2562, 0.2562]
-        elif args.dataset == 'rgbtvg_m3fd':
-            mean = [0.3264, 0.3264, 0.3264]
-            std = [0.199, 0.199, 0.199]
-        elif args.dataset == 'rgbtvg_mfad':
-            mean = [0.3393, 0.3393, 0.3393]
-            std = [0.2063, 0.2063, 0.2063]
-        else:
-            mean = [0.5, 0.5, 0.5]
-            std = [0.2, 0.2, 0.2]
-    else:
-        mean = [0.485, 0.456, 0.406]
-        std = [0.229, 0.224, 0.225]
-    
-    return np.array(mean), np.array(std)
-
-
-def denormalize_image(img_tensor, mean, std, modality='rgb'):
-    """反归一化图像张量"""
-    img = img_tensor.cpu().numpy()
-    if len(img.shape) == 4:  # batch dimension
-        img = img[0]
-    img = img.transpose(1, 2, 0)  # CHW -> HWC
-    
-    # 反归一化
-    img = (img * std + mean) * 255
-    img = np.clip(img, 0, 255).astype(np.uint8)
-    
-    # 如果是RGBT，只取前3个通道用于可视化
-    if img.shape[2] == 4:
-        img = img[:, :, :3]
-    
-    # 处理IR图像：转换为灰度显示
-    if modality == 'ir' and img.shape[2] == 3:
-        # 取第一个通道作为灰度图
-        gray_img = np.ascontiguousarray(img[:, :, 0])
-        # 为了绘制彩色bbox，转换回3通道
-        img = cv2.cvtColor(gray_img, cv2.COLOR_GRAY2RGB)
-    
-    return img
-
-
-def visualize_oneref_pred_only(args, img_tensor, text, pred_bbox, sample_idx=0, output_dir=None):
-    """
-    仅可视化预测框（无GT框）
-    """
-    mean, std = get_normalization_params(args)
-    img = denormalize_image(img_tensor, mean, std, args.modality)
-    img_h, img_w = img.shape[:2]
-
-    imsize = args.imsize
-    if isinstance(pred_bbox, torch.Tensor):
-        pred_bbox_xyxy = xywh2xyxy(pred_bbox.unsqueeze(0))
-        pred_coords = (imsize * pred_bbox_xyxy[0].cpu().numpy()).astype(int)
-    else:
-        pred_bbox_xyxy = xywh2xyxy(torch.tensor(pred_bbox).unsqueeze(0))
-        pred_coords = (imsize * pred_bbox_xyxy[0].cpu().numpy()).astype(int)
-
-    x_min, y_min, x_max, y_max = pred_coords
-    x_min = max(0, min(x_min, img_w - 1))
-    y_min = max(0, min(y_min, img_h - 1))
-    x_max = max(0, min(x_max, img_w - 1))
-    y_max = max(0, min(y_max, img_h - 1))
-
-    if output_dir is None:
-        output_dir = getattr(args, 'visual_output_dir', './visual_result/oneref')
-    Path(output_dir).mkdir(parents=True, exist_ok=True)
-    
-    # 处理不同模态的图像保存
-    if args.modality == 'rgbt' and img.shape[2] >= 4:
-        # RGBT模态：保存两张图片（RGB彩色 + IR灰度）
-        # 1. 保存RGB彩色图像
-        rgb_img = np.ascontiguousarray(img[:, :, :3])
-        cv2.rectangle(rgb_img, (x_min, y_min), (x_max, y_max), (0, 255, 0), 2)
-        rgb_path = os.path.join(output_dir, f"oneref_pred_{sample_idx:06d}_rgb.jpg")
-        cv2.imwrite(rgb_path, cv2.cvtColor(rgb_img, cv2.COLOR_RGB2BGR))
-        
-        # 2. 保存IR灰度图像
-        ir_img = np.ascontiguousarray(img[:, :, 3])  # 第4个通道是IR
-        ir_img_3ch = cv2.cvtColor(ir_img, cv2.COLOR_GRAY2RGB)  # 转为3通道以绘制彩色bbox
-        cv2.rectangle(ir_img_3ch, (x_min, y_min), (x_max, y_max), (0, 255, 0), 2)
-        ir_path = os.path.join(output_dir, f"oneref_pred_{sample_idx:06d}_ir.jpg")
-        cv2.imwrite(ir_path, cv2.cvtColor(ir_img_3ch, cv2.COLOR_RGB2BGR))
-        
-        output_path = rgb_path  # 返回RGB图像路径作为主要输出
-        vis_img = rgb_img
-        
-    else:
-        # RGB 或 IR 模态
-        vis_img = img.copy()
-        cv2.rectangle(vis_img, (x_min, y_min), (x_max, y_max), (0, 255, 0), 2)
-        output_path = os.path.join(output_dir, f"oneref_pred_{sample_idx:06d}.jpg")
-        cv2.imwrite(output_path, cv2.cvtColor(vis_img, cv2.COLOR_RGB2BGR))
-    
-    # 保存文本到txt文件
-    txt_path = os.path.join(output_dir, f"oneref_pred_{sample_idx:06d}.txt")
-    with open(txt_path, 'w', encoding='utf-8') as f:
-        f.write(text)
-    return vis_img, output_path
 
 
 # ==================== 模型加载和处理函数 ====================
@@ -327,79 +195,8 @@ def load_model(args):
     return model
 
 
-def load_dataset(label_file):
-    """加载数据集标注文件"""
-    print(f"Loading dataset from: {label_file}")
-    data = torch.load(label_file)
-    print(f"Total samples in dataset: {len(data)}")
-    return data
 
 
-def process_image(args, img_path, text, transform):
-    """处理单张图像"""
-    if args.modality == 'rgbt':
-        # 尝试自动配对RGB和IR图像
-        if '/rgb/' in img_path:
-            rgb_path = img_path
-            ir_path = img_path.replace('/rgb/', '/ir/')
-        elif '/ir/' in img_path:
-            ir_path = img_path
-            rgb_path = img_path.replace('/ir/', '/rgb/')
-        else:
-            # 无法确定路径结构，假设只有RGB
-            rgb_path = img_path
-            ir_path = None
-        
-        # 加载RGB图像
-        if os.path.exists(rgb_path):
-            img_rgb = Image.open(rgb_path).convert('RGB')
-        else:
-            print(f"Warning: RGB image not found: {rgb_path}")
-            return None, None
-        
-        # 加载IR图像
-        if ir_path and os.path.exists(ir_path):
-            img_ir = Image.open(ir_path)
-            np_rgb = np.array(img_rgb)
-            np_ir = np.array(img_ir)
-            
-            # 如果IR图像是3通道，只取第一个通道
-            if np_ir.ndim == 3:
-                np_ir = np_ir[..., 0]
-            
-            # 扩展IR为单通道
-            np_ir = np.expand_dims(np_ir, axis=-1)
-            
-            # 合并RGBT
-            np_combined = np.concatenate([np_rgb, np_ir], axis=-1)
-            pil_img = Image.fromarray(np_combined)
-        else:
-            print(f"Warning: IR image not found: {ir_path}, using RGB only")
-            pil_img = img_rgb
-    
-    elif args.modality == 'ir':
-        # 纯IR模式
-        if not os.path.exists(img_path):
-            print(f"Warning: Image not found: {img_path}")
-            return None, None
-        # IR图像转换为RGB（3通道），与dataloader保持一致
-        pil_img = Image.open(img_path).convert('RGB')
-    
-    else:  # RGB模式
-        if not os.path.exists(img_path):
-            print(f"Warning: Image not found: {img_path}")
-            return None, None
-        pil_img = Image.open(img_path).convert('RGB')
-    
-    # 获取图像尺寸
-    w, h = pil_img.size
-    full_box_xyxy = torch.tensor([0.0, 0.0, float(w - 1), float(h - 1)], dtype=torch.float32)
-    
-    # 应用变换
-    input_dict = {'img': pil_img, 'box': full_box_xyxy, 'text': text}
-    input_dict = transform(input_dict)
-    
-    return input_dict['img'], input_dict['mask']
 
 
 def visualize_dataset(args):
@@ -445,7 +242,23 @@ def visualize_dataset(args):
         
         try:
             # 处理图像
-            img_tensor, img_mask = process_image(args, img_path, text, transform)
+            result = process_image(args, img_path, text, transform)
+            if result is None:
+                fail_count += 1
+                continue
+            
+            # 根据模态解析返回值
+            if args.modality == 'rgbt':
+                if len(result) != 4:
+                    fail_count += 1
+                    continue
+                img_tensor, img_mask, pil_img_original, pil_img_ir = result
+            else:
+                if len(result) != 3:
+                    fail_count += 1
+                    continue
+                img_tensor, img_mask, pil_img_original = result
+                pil_img_ir = None
             
             if img_tensor is None:
                 fail_count += 1
@@ -462,13 +275,13 @@ def visualize_dataset(args):
                 pred_box, pred_seg, img_cls, text_cls = model(img_nt.tensors, img_nt.mask, texts)
             
             # 可视化结果
-            img_t = img_tensor[0].cpu()
             bbox = pred_box[0].cpu()
             
-            vis_img, out_path = visualize_oneref_pred_only(
-                args, img_t, text, bbox, 
-                sample_idx=sample_idx, 
-                output_dir=args.output_dir
+            out_path = save_pred_visualization(
+                args, pil_img_original, pil_img_ir, text, bbox,
+                sample_idx=sample_idx,
+                output_dir=args.output_dir,
+                model_name="oneref"
             )
             
             success_count += 1

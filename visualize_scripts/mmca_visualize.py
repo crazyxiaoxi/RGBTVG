@@ -20,6 +20,9 @@ from datasets import make_transforms
 from utils.misc import NestedTensor
 from transformers import BertTokenizer
 
+# 导入公共可视化工具
+from utils_visualization import process_image, save_pred_visualization, load_dataset
+
 
 def get_args_parser():
     parser = argparse.ArgumentParser('MMCA Visualization', add_help=False)
@@ -163,161 +166,6 @@ def load_model(args, device):
     return model, args  # 返回更新后的args
 
 
-def load_dataset(label_file):
-    """加载数据集标注文件"""
-    print(f"Loading dataset from: {label_file}")
-    data = torch.load(label_file)
-    print(f"Total samples in dataset: {len(data)}")
-    return data
-
-
-def process_image(args, img_path, text, transform):
-    """处理单张图像，返回transform后的图像用于模型推理和原始图像用于可视化"""
-    pil_img_original = None  # 保存原始图像用于可视化
-    if args.modality == 'rgbt':
-        # 尝试自动配对RGB和IR图像
-        if '/rgb/' in img_path:
-            rgb_path = img_path
-            ir_path = img_path.replace('/rgb/', '/ir/')
-        elif '/ir/' in img_path:
-            ir_path = img_path
-            rgb_path = img_path.replace('/ir/', '/rgb/')
-        else:
-            rgb_path = img_path
-            ir_path = img_path.replace('rgb', 'ir')
-        
-        # 检查文件是否存在
-        if not os.path.exists(rgb_path) or not os.path.exists(ir_path):
-            print(f"Warning: RGB or IR image not found: {rgb_path}, {ir_path}")
-            return None, None, None
-        
-        # 加载RGB和IR图像
-        rgb_img = Image.open(rgb_path).convert('RGB')
-        ir_img = Image.open(ir_path).convert('L')
-        
-        # 保存原始RGB和IR图像用于可视化
-        pil_img_original = rgb_img.copy()
-        pil_img_ir = ir_img.copy()
-        
-        # 完全按照数据加载器的RGBT处理流程（与CLIP_VG一致）
-        np_rgb = np.array(rgb_img)
-        np_ir = np.array(ir_img)
-        if np_ir.shape[-1] == 3:
-            np_ir = np_ir[..., 0]
-        np_ir = np.expand_dims(np_ir, axis=-1)
-        np_combined = np.concatenate([np_rgb, np_ir], axis=-1)
-        img = Image.fromarray(np_combined)
-        
-        # 获取图像尺寸
-        w, h = img.size
-        full_box_xyxy = torch.tensor([0.0, 0.0, float(w - 1), float(h - 1)], dtype=torch.float32)
-        
-        # 使用transform处理RGBT图像
-        input_dict = {'img': img, 'box': full_box_xyxy, 'text': text}
-        input_dict = transform(input_dict)
-        
-        return input_dict['img'], input_dict['mask'], pil_img_original, pil_img_ir
-        
-    elif args.modality == 'ir':
-        if not os.path.exists(img_path):
-            print(f"Warning: Image not found: {img_path}")
-            return None, None, None
-        # IR图像转换为RGB（3通道），与dataloader保持一致
-        pil_img = Image.open(img_path).convert('RGB')
-        
-        # 保存原始图像用于可视化
-        pil_img_original = pil_img.copy()
-        
-        # 获取图像尺寸
-        w, h = pil_img.size
-        full_box_xyxy = torch.tensor([0.0, 0.0, float(w - 1), float(h - 1)], dtype=torch.float32)
-        
-        # 应用变换
-        input_dict = {'img': pil_img, 'box': full_box_xyxy, 'text': text}
-        input_dict = transform(input_dict)
-        
-        return input_dict['img'], input_dict['mask'], pil_img_original
-    else:  # RGB
-        if not os.path.exists(img_path):
-            print(f"Warning: Image not found: {img_path}")
-            return None, None, None
-        pil_img = Image.open(img_path).convert('RGB')
-        
-        # 保存原始图像用于可视化
-        pil_img_original = pil_img.copy()
-    
-    # 获取图像尺寸
-    w, h = pil_img.size
-    full_box_xyxy = torch.tensor([0.0, 0.0, float(w - 1), float(h - 1)], dtype=torch.float32)
-    
-    # 应用变换
-    input_dict = {'img': pil_img, 'box': full_box_xyxy, 'text': text}
-    input_dict = transform(input_dict)
-    
-    return input_dict['img'], input_dict['mask'], pil_img_original
-
-
-def save_visualization(args, pil_img_original, pil_img_ir, text, pred_bbox, sample_idx, output_dir):
-    """保存单个可视化结果（使用原始图像而不是transform后的图像）"""
-    # 直接使用原始图像，不需要反归一化
-    img_np = np.array(pil_img_original)
-    
-    # 转换bbox到像素坐标
-    h, w = img_np.shape[:2]
-    if isinstance(pred_bbox, torch.Tensor):
-        pred_bbox = pred_bbox.cpu().numpy()
-    
-    # 假设pred_bbox是xywh格式，转换为xyxy
-    x_center, y_center, bbox_w, bbox_h = pred_bbox
-    x_min = int((x_center - bbox_w / 2) * w)
-    y_min = int((y_center - bbox_h / 2) * h)
-    x_max = int((x_center + bbox_w / 2) * w)
-    y_max = int((y_center + bbox_h / 2) * h)
-    
-    # 限制在图像范围内
-    x_min = max(0, min(x_min, w - 1))
-    y_min = max(0, min(y_min, h - 1))
-    x_max = max(0, min(x_max, w - 1))
-    y_max = max(0, min(y_max, h - 1))
-    
-    Path(output_dir).mkdir(parents=True, exist_ok=True)
-
-    # 处理不同模态的图像保存
-    if args.modality == 'rgbt':
-        # RGBT模态：保存两张图片（RGB + IR）+ 1个txt文件
-        # 1. 保存RGB图像 + bbox
-        rgb_img = np.array(pil_img_original)
-        cv2.rectangle(rgb_img, (x_min, y_min), (x_max, y_max), (0, 255, 0), 2)
-        rgb_path = os.path.join(output_dir, f"mmca_pred_{sample_idx:06d}_rgb.jpg")
-        cv2.imwrite(rgb_path, cv2.cvtColor(rgb_img, cv2.COLOR_RGB2BGR))
-
-        # 2. 保存IR图像 + bbox
-        if pil_img_ir is not None:
-            ir_img = np.array(pil_img_ir)
-            # 如果IR是灰度图，转为3通道以绘制彩色bbox
-            if len(ir_img.shape) == 2:
-                ir_img_3ch = cv2.cvtColor(ir_img, cv2.COLOR_GRAY2RGB)
-            else:
-                ir_img_3ch = ir_img
-            cv2.rectangle(ir_img_3ch, (x_min, y_min), (x_max, y_max), (0, 255, 0), 2)
-            ir_path = os.path.join(output_dir, f"mmca_pred_{sample_idx:06d}_ir.jpg")
-            cv2.imwrite(ir_path, cv2.cvtColor(ir_img_3ch, cv2.COLOR_RGB2BGR))
-
-        output_path = rgb_path  # 返回RGB图像路径作为主要输出
-
-    else:
-        # RGB/IR模态：保存单张图片
-        vis_img = np.ascontiguousarray(img_np)
-        cv2.rectangle(vis_img, (x_min, y_min), (x_max, y_max), (0, 255, 0), 2)
-        output_path = os.path.join(output_dir, f"mmca_pred_{sample_idx:06d}.jpg")
-        cv2.imwrite(output_path, cv2.cvtColor(vis_img, cv2.COLOR_RGB2BGR))
-
-    # 保存文本到txt文件
-    txt_path = os.path.join(output_dir, f"mmca_pred_{sample_idx:06d}.txt")
-    with open(txt_path, 'w', encoding='utf-8') as f:
-        f.write(text)
-
-    return output_path
 
 
 def visualize_dataset(args):
@@ -421,10 +269,11 @@ def visualize_dataset(args):
             # 可视化结果（使用原始图像）
             bbox = pred_boxes[0].cpu()
             
-            out_path = save_visualization(
+            out_path = save_pred_visualization(
                 args, pil_img_original, pil_img_ir, text, bbox,
                 sample_idx=sample_idx,
-                output_dir=args.output_dir
+                output_dir=args.output_dir,
+                model_name="mmca"
             )
             
             success_count += 1
