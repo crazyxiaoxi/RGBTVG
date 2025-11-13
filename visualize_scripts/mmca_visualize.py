@@ -199,12 +199,21 @@ def process_image(args, img_path, text, transform):
         pil_img_original = rgb_img.copy()
         pil_img_ir = ir_img.copy()
         
+        # 完全按照数据加载器的RGBT处理流程（与CLIP_VG一致）
+        np_rgb = np.array(rgb_img)
+        np_ir = np.array(ir_img)
+        if np_ir.shape[-1] == 3:
+            np_ir = np_ir[..., 0]
+        np_ir = np.expand_dims(np_ir, axis=-1)
+        np_combined = np.concatenate([np_rgb, np_ir], axis=-1)
+        img = Image.fromarray(np_combined)
+        
         # 获取图像尺寸
-        w, h = rgb_img.size
+        w, h = img.size
         full_box_xyxy = torch.tensor([0.0, 0.0, float(w - 1), float(h - 1)], dtype=torch.float32)
         
-        # 应用变换
-        input_dict = {'img': rgb_img, 'ir': ir_img, 'box': full_box_xyxy, 'text': text}
+        # 使用transform处理RGBT图像
+        input_dict = {'img': img, 'box': full_box_xyxy, 'text': text}
         input_dict = transform(input_dict)
         
         return input_dict['img'], input_dict['mask'], pil_img_original, pil_img_ir

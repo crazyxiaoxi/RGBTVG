@@ -1,9 +1,9 @@
 #!/bin/bash
-# ===================== CLIP_VG全面测试脚本 =====================
+# ===================== MDETR-CLIP全面测试脚本 =====================
 # 自动测试所有数据集和模态组合
-# 使用示例：bash run_all_clip_vg_tests.sh
+# 使用示例：bash run_all_mdetr_clip_tests.sh
 
-echo "🚀 开始CLIP_VG全面测试..."
+echo "🚀 开始MDETR-CLIP全面测试..."
 echo "测试范围："
 echo "  - 数据集: flir, m3fd, mfad"
 echo "  - 模态: rgb, ir, rgbt"
@@ -16,11 +16,10 @@ conda activate rgbtvg
 
 # 定义数据集和模态
 DATASETS=("rgbtvg_flir" "rgbtvg_m3fd" "rgbtvg_mfad")
-# DATASETS=("rgbtvg_m3fd" "rgbtvg_mfad")
 MODALITIES=("rgb" "ir" "rgbt")
-# MODALITIES=("ir")
+
 # 模型路径基础目录
-MODEL_BASE_PATH="/home/xijiawen/code/rgbtvg/dataset_and_pretrain_model/result/clip_vg"
+MODEL_BASE_PATH="/home/xijiawen/code/rgbtvg/dataset_and_pretrain_model/result/MDETR_clip"
 
 # 计数器
 TOTAL_TESTS=9
@@ -39,12 +38,12 @@ for dataset in "${DATASETS[@]}"; do
         # 构建模型路径
         # 从数据集名称提取简短名称 (rgbtvg_flir -> flir)
         DATASET_SHORT=$(echo $dataset | sed 's/rgbtvg_//')
-        MODEL_CHECKPOINT="${MODEL_BASE_PATH}/CLIP_VG_224_${modality}_${DATASET_SHORT}_best.pth"
+        MODEL_CHECKPOINT="${MODEL_BASE_PATH}/MDETR_224_clip_${modality}_${DATASET_SHORT}_best.pth"
         
         echo ""
         echo "📊 测试 $CURRENT_TEST/$TOTAL_TESTS: $dataset + $modality"
         echo "   模型: $MODEL_CHECKPOINT"
-        echo "   输出: ./visual_result/clip_vg/$dataset/$modality"
+        echo "   输出: ./visual_result/mdetr_clip/$dataset/$modality"
         echo "----------------------------------------"
         
         # 检查模型文件是否存在
@@ -56,7 +55,7 @@ for dataset in "${DATASETS[@]}"; do
         fi
         
         # 运行测试
-        if bash visualize_scripts/shell_scripts/visualize_clip_vg.sh "$dataset" "$modality" "$MODEL_CHECKPOINT"; then
+        if bash visualize_scripts/shell_scripts/visualize_mdetr_clip.sh "$dataset" "$modality" "$MODEL_CHECKPOINT"; then
             echo "✅ 测试成功: $dataset + $modality"
             SUCCESS_COUNT=$((SUCCESS_COUNT + 1))
         else
@@ -78,7 +77,7 @@ MINUTES=$((DURATION / 60))
 SECONDS=$((DURATION % 60))
 
 echo ""
-echo "🎉 CLIP_VG全面测试完成！"
+echo "🎉 MDETR-CLIP全面测试完成！"
 echo "========================================"
 echo "📈 测试统计:"
 echo "   总测试数: $TOTAL_TESTS"
@@ -96,7 +95,7 @@ fi
 
 echo ""
 echo "📁 结果目录结构:"
-echo "visual_result/clip_vg/"
+echo "visual_result/mdetr_clip/"
 echo "├── rgbtvg_flir/"
 echo "│   ├── rgb/     # RGB模态结果"
 echo "│   ├── ir/      # IR模态结果"
@@ -114,7 +113,7 @@ echo ""
 echo "💡 提示:"
 echo "   - RGBT模态会生成两张图片: *_rgb.jpg 和 *_ir.jpg"
 echo "   - 每个测试默认生成100个样本"
-echo "   - 如需修改样本数，请编辑 visualize_clip_vg.sh 中的 NUM_SAMPLES"
+echo "   - 如需修改样本数，请编辑 visualize_mdetr_clip.sh 中的 NUM_SAMPLES"
 
 if [ $SUCCESS_COUNT -eq $TOTAL_TESTS ]; then
     echo ""

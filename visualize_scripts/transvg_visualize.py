@@ -188,28 +188,47 @@ def process_image(args, img_path, text, transform):
         # 检查文件是否存在
         if not os.path.exists(rgb_path) or not os.path.exists(ir_path):
             print(f"Warning: RGB or IR image not found: {rgb_path}, {ir_path}")
-            return None, None
+            return None, None, None, None
         
         # 加载RGB和IR图像
         rgb_img = Image.open(rgb_path).convert('RGB')
         ir_img = Image.open(ir_path).convert('L')
         
+        # 保存原始RGB和IR图像用于可视化
+        pil_img_original = rgb_img.copy()
+        pil_img_ir = ir_img.copy()
+        
+        # 完全按照数据加载器的RGBT处理流程（与CLIP_VG一致）
+        np_rgb = np.array(rgb_img)
+        np_ir = np.array(ir_img)
+        if np_ir.shape[-1] == 3:
+            np_ir = np_ir[..., 0]
+        np_ir = np.expand_dims(np_ir, axis=-1)
+        np_combined = np.concatenate([np_rgb, np_ir], axis=-1)
+        img = Image.fromarray(np_combined)
+        
         # 获取图像尺寸
-        w, h = rgb_img.size
+        w, h = img.size
         full_box_xyxy = torch.tensor([0.0, 0.0, float(w - 1), float(h - 1)], dtype=torch.float32)
         
-        # 应用变换
-        input_dict = {'img': rgb_img, 'ir': ir_img, 'box': full_box_xyxy, 'text': text}
+        # 使用transform处理RGBT图像
+        input_dict = {'img': img, 'box': full_box_xyxy, 'text': text}
         input_dict = transform(input_dict)
         
-        return input_dict['img'], input_dict['mask']
+        return input_dict['img'], input_dict['mask'], pil_img_original, pil_img_ir
         
     elif args.modality == 'ir':
         if not os.path.exists(img_path):
             print(f"Warning: Image not found: {img_path}")
-            return None, None
+            return None, None, None
+        # 加载原始IR图像用于可视化
+        pil_img_ir_original = Image.open(img_path)
+        
         # IR图像转换为RGB（3通道），与dataloader保持一致
         pil_img = Image.open(img_path).convert('RGB')
+        
+        # 保存原始IR图像用于可视化
+        pil_img_original = pil_img_ir_original.copy()
         
         # 获取图像尺寸
         w, h = pil_img.size
@@ -219,45 +238,31 @@ def process_image(args, img_path, text, transform):
         input_dict = {'img': pil_img, 'box': full_box_xyxy, 'text': text}
         input_dict = transform(input_dict)
         
-        return input_dict['img'], input_dict['mask']
+        return input_dict['img'], input_dict['mask'], pil_img_original
     else:  # RGB
         if not os.path.exists(img_path):
             print(f"Warning: Image not found: {img_path}")
-            return None, None
+            return None, None, None
         pil_img = Image.open(img_path).convert('RGB')
-    
-    # 获取图像尺寸
-    w, h = pil_img.size
-    full_box_xyxy = torch.tensor([0.0, 0.0, float(w - 1), float(h - 1)], dtype=torch.float32)
-    
-    # 应用变换
-    input_dict = {'img': pil_img, 'box': full_box_xyxy, 'text': text}
-    input_dict = transform(input_dict)
-    
-    return input_dict['img'], input_dict['mask']
+        
+        # 保存原始图像用于可视化
+        pil_img_original = pil_img.copy()
+        
+        # 获取图像尺寸
+        w, h = pil_img.size
+        full_box_xyxy = torch.tensor([0.0, 0.0, float(w - 1), float(h - 1)], dtype=torch.float32)
+        
+        # 应用变换
+        input_dict = {'img': pil_img, 'box': full_box_xyxy, 'text': text}
+        input_dict = transform(input_dict)
+        
+        return input_dict['img'], input_dict['mask'], pil_img_original
 
 
-def save_visualization(args, img_tensor, text, pred_bbox, sample_idx, output_dir):
-    """保存单个可视化结果（图片只显示bbox框，文本保存到txt文件）"""
-    # 获取归一化参数
-    if args.modality == 'rgbt':
-        if args.dataset == 'rgbtvg_flir':
-            mean, std = [0.631, 0.6401, 0.632, 0.5337], [0.2152, 0.227, 0.2439, 0.2562]
-        elif args.dataset == 'rgbtvg_m3fd':
-            mean, std = [0.5013, 0.5067, 0.4923, 0.3264], [0.1948, 0.1989, 0.2117, 0.199]
-        else:
-            mean, std = [0.485, 0.456, 0.406, 0.5], [0.229, 0.224, 0.225, 0.25]
-    elif args.modality == 'ir':
-        mean, std = [0.5], [0.25]
-    else:  # RGB
-        mean, std = [0.485, 0.456, 0.406], [0.229, 0.224, 0.225]
-    
-    # 反归一化
-    img_np = img_tensor.permute(1, 2, 0).cpu().numpy()
-    num_channels = img_np.shape[2]
-    for i in range(min(num_channels, len(mean))):
-        img_np[:, :, i] = img_np[:, :, i] * std[i] + mean[i]
-    img_np = np.clip(img_np * 255, 0, 255).astype(np.uint8)
+def save_visualization(args, pil_img_original, pil_img_ir, text, pred_bbox, sample_idx, output_dir):
+    """保存单个可视化结果（RGBT模态保存RGB+IR两张图片+1个txt）"""
+    # 直接使用原始图像，不需要反归一化
+    img_np = np.array(pil_img_original)
     
     # 转换bbox到像素坐标
     h, w = img_np.shape[:2]
@@ -281,32 +286,38 @@ def save_visualization(args, img_tensor, text, pred_bbox, sample_idx, output_dir
     
     # 处理不同模态的图像保存
     if args.modality == 'rgbt':
-        # RGBT模态：保存两张图片（RGB彩色 + IR灰度）
-        # 1. 保存RGB彩色图像
-        rgb_img = np.ascontiguousarray(img_np[:, :, :3])
+        # RGBT模态：保存两张图片（RGB + IR）+ 1个txt文件
+        # 1. 保存RGB图像 + bbox
+        rgb_img = np.array(pil_img_original)
         cv2.rectangle(rgb_img, (x_min, y_min), (x_max, y_max), (0, 255, 0), 2)
         rgb_path = os.path.join(output_dir, f"transvg_pred_{sample_idx:06d}_rgb.jpg")
         cv2.imwrite(rgb_path, cv2.cvtColor(rgb_img, cv2.COLOR_RGB2BGR))
         
-        # 2. 保存IR灰度图像
-        ir_img = np.ascontiguousarray(img_np[:, :, 3])  # 第4个通道是IR
-        ir_img_3ch = cv2.cvtColor(ir_img, cv2.COLOR_GRAY2RGB)  # 转为3通道以绘制彩色bbox
-        cv2.rectangle(ir_img_3ch, (x_min, y_min), (x_max, y_max), (0, 255, 0), 2)
-        ir_path = os.path.join(output_dir, f"transvg_pred_{sample_idx:06d}_ir.jpg")
-        cv2.imwrite(ir_path, cv2.cvtColor(ir_img_3ch, cv2.COLOR_RGB2BGR))
+        # 2. 保存IR图像 + bbox
+        if pil_img_ir is not None:
+            ir_img = np.array(pil_img_ir)
+            # 如果IR是灰度图，转为3通道以绘制彩色bbox
+            if len(ir_img.shape) == 2:
+                ir_img_3ch = cv2.cvtColor(ir_img, cv2.COLOR_GRAY2RGB)
+            else:
+                ir_img_3ch = ir_img
+            cv2.rectangle(ir_img_3ch, (x_min, y_min), (x_max, y_max), (0, 255, 0), 2)
+            ir_path = os.path.join(output_dir, f"transvg_pred_{sample_idx:06d}_ir.jpg")
+            cv2.imwrite(ir_path, cv2.cvtColor(ir_img_3ch, cv2.COLOR_RGB2BGR))
         
         output_path = rgb_path  # 返回RGB图像路径作为主要输出
         
-    elif args.modality == 'ir':
-        # IR图像：取第一个通道作为灰度图显示
-        gray_img = np.ascontiguousarray(img_np[:, :, 0])
-        vis_img = cv2.cvtColor(gray_img, cv2.COLOR_GRAY2RGB)
-        cv2.rectangle(vis_img, (x_min, y_min), (x_max, y_max), (0, 255, 0), 2)
-        output_path = os.path.join(output_dir, f"transvg_pred_{sample_idx:06d}.jpg")
-        cv2.imwrite(output_path, cv2.cvtColor(vis_img, cv2.COLOR_RGB2BGR))
+    else:
+        # RGB/IR模态：保存单张图片
+        vis_img = np.array(pil_img_original)
         
-    else:  # RGB
-        vis_img = np.ascontiguousarray(img_np)
+        # 如果是IR图像且为灰度图，转为3通道以绘制彩色bbox
+        if args.modality == 'ir' and len(vis_img.shape) == 2:
+            vis_img = cv2.cvtColor(vis_img, cv2.COLOR_GRAY2RGB)
+        elif args.modality == 'ir' and len(vis_img.shape) == 3 and vis_img.shape[2] == 1:
+            vis_img = np.repeat(vis_img, 3, axis=2)
+        
+        vis_img = np.ascontiguousarray(vis_img)
         cv2.rectangle(vis_img, (x_min, y_min), (x_max, y_max), (0, 255, 0), 2)
         output_path = os.path.join(output_dir, f"transvg_pred_{sample_idx:06d}.jpg")
         cv2.imwrite(output_path, cv2.cvtColor(vis_img, cv2.COLOR_RGB2BGR))
@@ -369,7 +380,23 @@ def visualize_dataset(args):
         
         try:
             # 处理图像
-            img_tensor, img_mask = process_image(args, img_path, text, transform)
+            result = process_image(args, img_path, text, transform)
+            if result is None:
+                fail_count += 1
+                continue
+            
+            # 根据模态解析返回值
+            if args.modality == 'rgbt':
+                if len(result) != 4:
+                    fail_count += 1
+                    continue
+                img_tensor, img_mask, pil_img_original, pil_img_ir = result
+            else:
+                if len(result) != 3:
+                    fail_count += 1
+                    continue
+                img_tensor, img_mask, pil_img_original = result
+                pil_img_ir = None
             
             if img_tensor is None:
                 fail_count += 1
@@ -401,12 +428,11 @@ def visualize_dataset(args):
                 # TransVG模型期望(img_nt, text_nt)
                 pred_boxes = model(img_nt, text_nt)
             
-            # 可视化结果
-            img_t = img_tensor[0].cpu()
+            # 可视化结果（使用原始图像）
             bbox = pred_boxes[0].cpu()
             
             out_path = save_visualization(
-                args, img_t, text, bbox,
+                args, pil_img_original, pil_img_ir, text, bbox,
                 sample_idx=sample_idx,
                 output_dir=args.output_dir
             )

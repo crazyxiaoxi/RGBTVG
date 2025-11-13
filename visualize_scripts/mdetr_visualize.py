@@ -338,9 +338,13 @@ def visualize_dataset(args):
     # 加载模型（可能会更新args为checkpoint中的配置）
     model, args = load_model(args, device)
     
-    # 初始化 tokenizer
-    print(f"Loading tokenizer: {args.bert_model}")
-    tokenizer = BertTokenizer.from_pretrained(args.bert_model)
+    # 初始化 tokenizer（仅在ResNet模式下需要）
+    tokenizer = None
+    if not (hasattr(args, 'model_type') and args.model_type == 'CLIP'):
+        print(f"Loading tokenizer: {args.bert_model}")
+        tokenizer = BertTokenizer.from_pretrained(args.bert_model)
+    else:
+        print("Using CLIP tokenizer (no BERT tokenizer needed)")
     
     # 加载数据集
     dataset = load_dataset(args.label_file)
@@ -416,6 +420,9 @@ def visualize_dataset(args):
                 text_nt = NestedTensor(text_tokens, ~text_mask)  # NestedTensor的mask是反向的
             else:
                 # 使用BERT tokenizer（默认ResNet模式）
+                if tokenizer is None:
+                    raise ValueError("BERT tokenizer is required for ResNet mode but not initialized")
+                
                 from datasets.data_loader import read_examples, convert_examples_to_features
                 
                 examples = read_examples(text, 0)  # idx=0 for visualization
@@ -432,8 +439,12 @@ def visualize_dataset(args):
             
             # 模型推理
             with torch.no_grad():
-                # MDETR模型期望(img_nt, text_nt)
-                pred_boxes = model(img_nt, text_nt)
+                if hasattr(args, 'model_type') and args.model_type == 'CLIP':
+                    # CLIP模式：使用普通tensor而不是NestedTensor
+                    pred_boxes = model(img_tensor, text_tokens)
+                else:
+                    # ResNet模式：使用NestedTensor
+                    pred_boxes = model(img_nt, text_nt)
             
             # 可视化结果（使用原始图像）
             bbox = pred_boxes[0].cpu()

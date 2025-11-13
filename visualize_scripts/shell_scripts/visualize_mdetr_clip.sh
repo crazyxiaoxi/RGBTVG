@@ -1,29 +1,61 @@
 #!/bin/bash
 # ===================== MDETR-CLIP可视化脚本 =====================
 # 使用示例：
-# bash visualize_scripts/shell_scripts/visualize_mdetr_clip.sh
+# bash visualize_scripts/shell_scripts/visualize_mdetr_clip.sh [DATASET] [MODALITY] [MODEL_CHECKPOINT]
+# 或者直接运行使用默认参数
 
 # 激活conda环境（如果需要）
 source ~/anaconda3/etc/profile.d/conda.sh
 conda activate rgbtvg
 
+# ===================== 参数解析 =====================
+# 从命令行参数获取，如果没有则使用默认值
+DATASET=${1:-"rgbtvg_flir"}  # 默认rgbtvg_flir
+MODALITY=${2:-"rgb"}          # 默认rgb
+MODEL_CHECKPOINT=${3:-"/home/xijiawen/code/rgbtvg/dataset_and_pretrain_model/result/MDETR_clip/MDETR_224_clip_rgb_flir_best.pth"}
+
 # ===================== 配置参数 =====================
 # 模型相关
-# 注意：请根据你的实际模型路径修改以下路径
-MODEL_CHECKPOINT="/home/xijiawen/code/rgbtvg/dataset_and_pretrain_model/result/mdetr_clip/MDETR_CLIP_224_rgb_flir_best.pth"  # 修改为你的模型路径
-MODEL_TYPE="CLIP"  # ResNet 或 CLIP
-BACKBONE="resnet50"  # resnet50 或其他（CLIP版本可能不使用此参数）
+MODEL_TYPE="CLIP"  # CLIP版本
+BACKBONE="resnet50"  # resnet50 或其他
 BERT_ENC_NUM=12
 DETR_ENC_NUM=6
 
-# 数据集相关
-DATASET="rgbtvg_flir"  # 数据集名称
-MODALITY="rgb"  # rgb, ir, rgbt - 根据你想用的图像模态选择
-LABEL_FILE="../dataset_and_pretrain_model/datasets/VG/ref_data_shuffled/rgbtvg_flir/rgbtvg_flir_train.pth"
-DATAROOT="../dataset_and_pretrain_model/datasets/VG/image_data/rgbtvg/rgbtvg-images/flir/rgb/"  # 图像目录
+# 根据数据集设置数据路径
+case $DATASET in
+    "rgbtvg_flir")
+        LABEL_FILE="../dataset_and_pretrain_model/datasets/VG/ref_data_shuffled/rgbtvg_flir/rgbtvg_flir_train.pth"
+        case $MODALITY in
+            "rgb") DATAROOT="../dataset_and_pretrain_model/datasets/VG/image_data/rgbtvg/rgbtvg-images/flir/rgb/" ;;
+            "ir") DATAROOT="../dataset_and_pretrain_model/datasets/VG/image_data/rgbtvg/rgbtvg-images/flir/ir/" ;;
+            "rgbt") DATAROOT="../dataset_and_pretrain_model/datasets/VG/image_data/rgbtvg/rgbtvg-images/flir/rgb/" ;;  # RGBT使用RGB目录
+        esac
+        ;;
+    "rgbtvg_m3fd")
+        LABEL_FILE="../dataset_and_pretrain_model/datasets/VG/ref_data_shuffled/rgbtvg_m3fd/rgbtvg_m3fd_train.pth"
+        case $MODALITY in
+            "rgb") DATAROOT="../dataset_and_pretrain_model/datasets/VG/image_data/rgbtvg/rgbtvg-images/m3fd/rgb/" ;;
+            "ir") DATAROOT="../dataset_and_pretrain_model/datasets/VG/image_data/rgbtvg/rgbtvg-images/m3fd/ir/" ;;
+            "rgbt") DATAROOT="../dataset_and_pretrain_model/datasets/VG/image_data/rgbtvg/rgbtvg-images/m3fd/rgb/" ;;  # RGBT使用RGB目录
+        esac
+        ;;
+    "rgbtvg_mfad")
+        LABEL_FILE="../dataset_and_pretrain_model/datasets/VG/ref_data_shuffled/rgbtvg_mfad/rgbtvg_mfad_train.pth"
+        case $MODALITY in
+            "rgb") DATAROOT="../dataset_and_pretrain_model/datasets/VG/image_data/rgbtvg/rgbtvg-images/mfad/rgb/" ;;
+            "ir") DATAROOT="../dataset_and_pretrain_model/datasets/VG/image_data/rgbtvg/rgbtvg-images/mfad/ir/" ;;
+            "rgbt") DATAROOT="../dataset_and_pretrain_model/datasets/VG/image_data/rgbtvg/rgbtvg-images/mfad/rgb/" ;;  # RGBT使用RGB目录
+        esac
+        ;;
+    *)
+        echo "❌ 错误: 不支持的数据集 $DATASET"
+        echo "支持的数据集: rgbtvg_flir, rgbtvg_m3fd, rgbtvg_mfad"
+        exit 1
+        ;;
+esac
 
 # 可视化参数
-OUTPUT_DIR="./visual_result/mdetr_clip_${DATASET}_${MODALITY}"
+OUTPUT_DIR="./visual_result/mdetr_clip/${DATASET}/${MODALITY}"
 NUM_SAMPLES=100  # 可视化样本数
 START_IDX=0      # 起始索引
 IMSIZE=224       # 图像尺寸（将使用checkpoint中的配置）

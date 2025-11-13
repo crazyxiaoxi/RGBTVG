@@ -216,11 +216,12 @@ def process_image(args, img_path, text, transform):
 
         # 使用transform处理RGBT图像
         input_dict = {'img': img, 'box': full_box_xyxy, 'text': text}
+
         input_dict = transform(input_dict)
 
         return input_dict['img'], input_dict['mask'], pil_img_original, pil_img_ir
         
-    elif args.modality == 'ir':
+    else:
         if not os.path.exists(img_path):
             print(f"Warning: Image not found: {img_path}")
             return None, None, None
@@ -232,21 +233,22 @@ def process_image(args, img_path, text, transform):
         
         # 获取图像尺寸
         w, h = pil_img.size
-        full_box_xyxy = torch.tensor([0.0, 0.0, float(w - 1), float(h - 1)], dtype=torch.float32)
+        full_box_xyxy = torch.tensor([0, 0, 128, 128], dtype=torch.float32)
         
         # 应用变换
         input_dict = {'img': pil_img, 'box': full_box_xyxy, 'text': text}
+
         input_dict = transform(input_dict)
-        
+
         return input_dict['img'], input_dict['mask'], pil_img_original
-    else:  # RGB
-        if not os.path.exists(img_path):
-            print(f"Warning: Image not found: {img_path}")
-            return None, None, None
-        pil_img = Image.open(img_path).convert('RGB')
+    # else:  # RGB
+    #     if not os.path.exists(img_path):
+    #         print(f"Warning: Image not found: {img_path}")
+    #         return None, None, None
+    #     pil_img = Image.open(img_path).convert('RGB')
         
-        # 保存原始图像用于可视化
-        pil_img_original = pil_img.copy()
+    #     # 保存原始图像用于可视化
+    #     pil_img_original = pil_img.copy()
     
     # 获取图像尺寸
     w, h = pil_img.size
@@ -258,35 +260,74 @@ def process_image(args, img_path, text, transform):
     
     return input_dict['img'], input_dict['mask'], pil_img_original
 
-
-def save_visualization(args, pil_img_original, pil_img_ir, text, pred_bbox, sample_idx, output_dir):
-    """保存单个可视化结果（RGBT模态保存RGB+IR两张图片+1个txt）"""
+def save_visualization(args, pil_img_original, pil_img_ir, text, pred_bbox, gt_bbox, sample_idx, output_dir):
+    """保存单个可视化结果（RGBT模态保存RGB+IR两张图片+1个txt），同时显示预测框和真实框"""
     # 直接使用原始图像，不需要反归一化
     img_np = np.array(pil_img_original)
     
-    # 转换bbox到像素坐标 - CLIP_VG输出是sigmoid后的归一化坐标(x_center, y_center, w, h)
+    # 转换bbox到像素坐标
     h, w = img_np.shape[:2]
+    
+    # 处理预测框 - CLIP_VG模型输出是sigmoid后的归一化坐标(x_center, y_center, w, h)，范围[0,1]
     if isinstance(pred_bbox, torch.Tensor):
         pred_bbox = pred_bbox.cpu().numpy()
     
-    # CLIP_VG输出格式是归一化的(x_center, y_center, w, h)
-    x_center, y_center, bbox_w, bbox_h = pred_bbox
-    x_min = int((x_center - bbox_w / 2) * w)
-    y_min = int((y_center - bbox_h / 2) * h)
-    x_max = int((x_center + bbox_w / 2) * w)
-    y_max = int((y_center + bbox_h / 2) * h)
+    # 预测框格式：归一化的(x_center, y_center, w, h)
+    # 需要转换为像素坐标的(x_min, y_min, x_max, y_max)用于绘制
+    pred_x_center, pred_y_center, pred_bbox_w, pred_bbox_h = pred_bbox
+    # pred_x_min = int((pred_x_center - pred_bbox_w / 2) * w)
+    # pred_y_min = int((pred_y_center - pred_bbox_h / 2) * h )
+    # pred_x_max = int((pred_x_center + pred_bbox_w / 2) * w)
+    # pred_y_max = int((pred_y_center + pred_bbox_h / 2) * h )
+    pred_x_min = int((pred_x_center - pred_bbox_w / 2) * w)
+    pred_y_min = int((pred_y_center - pred_bbox_h / 2) * w )
+    pred_x_max = int((pred_x_center + pred_bbox_w / 2) * w)
+    pred_y_max = int((pred_y_center + pred_bbox_h / 2) * w )
+    if args.dataset == 'rgbtvg_mfad':
+        pred_y_min -= 160
+        pred_y_max -= 160
+    elif args.dataset == 'rgbtvg_m3fd':
+        pred_y_min -= 128
+        pred_y_max -= 128
+    elif args.dataset == 'rgbtvg_flir':
+        pred_y_min -= 64
+        pred_y_max -= 64
+    # 限制预测框在图像范围内
+    pred_x_min = max(0, min(pred_x_min, w - 1))
+    pred_y_min = max(0, min(pred_y_min, h - 1))
+    pred_x_max = max(0, min(pred_x_max, w - 1))
+    pred_y_max = max(0, min(pred_y_max, h - 1))
     
-    # 限制在图像范围内
-    x_min = max(0, min(x_min, w - 1))
-    y_min = max(0, min(y_min, h - 1))
-    x_max = max(0, min(x_max, w - 1))
-    y_max = max(0, min(y_max, h - 1))
+    # 处理真实框 - GT是(x, y, w, h)格式的像素坐标（左上角+宽高）
+    if isinstance(gt_bbox, torch.Tensor):
+        gt_bbox = gt_bbox.cpu().numpy()
+    elif isinstance(gt_bbox, list):
+        gt_bbox = np.array(gt_bbox)
     
+    # GT bbox是像素坐标的xywh格式（左上角+宽高）
+    if len(gt_bbox) == 4:
+        gt_x, gt_y, gt_w, gt_h = gt_bbox.astype(int)
+        gt_x_min = gt_x
+        gt_y_min = gt_y
+        gt_x_max = gt_x + gt_w
+        gt_y_max = gt_y + gt_h
+
+    else:
+        print(f"Warning: Unexpected gt_bbox format: {gt_bbox}")
+        # 设置默认值避免错误
+        gt_x_min = gt_y_min = gt_x_max = gt_y_max = 0
+    
+    # 限制真实框在图像范围内
+    gt_x_min = max(0, min(gt_x_min, w - 1))
+    gt_y_min = max(0, min(gt_y_min, h - 1))
+    gt_x_max = max(0, min(gt_x_max, w - 1))
+    gt_y_max = max(0, min(gt_y_max, h - 1))
     Path(output_dir).mkdir(parents=True, exist_ok=True)
     
     # 保存RGB图像（带bbox）
     vis_img_rgb = np.ascontiguousarray(img_np)
-    cv2.rectangle(vis_img_rgb, (x_min, y_min), (x_max, y_max), (0, 255, 0), 2)
+    cv2.rectangle(vis_img_rgb, (pred_x_min, pred_y_min), (pred_x_max, pred_y_max), (0, 255, 0), 2)  # 绿色预测框
+    cv2.rectangle(vis_img_rgb, (gt_x_min, gt_y_min), (gt_x_max, gt_y_max), (0, 0, 255), 2)  # 红色真实框
     rgb_path = os.path.join(output_dir, f"clip_vg_pred_{sample_idx:06d}_rgb.jpg")
     cv2.imwrite(rgb_path, cv2.cvtColor(vis_img_rgb, cv2.COLOR_RGB2BGR))
     
@@ -300,7 +341,8 @@ def save_visualization(args, pil_img_original, pil_img_ir, text, pred_bbox, samp
             img_ir_np = np.repeat(img_ir_np, 3, axis=2)
         
         vis_img_ir = np.ascontiguousarray(img_ir_np)
-        cv2.rectangle(vis_img_ir, (x_min, y_min), (x_max, y_max), (0, 255, 0), 2)
+        cv2.rectangle(vis_img_ir, (pred_x_min, pred_y_min), (pred_x_max, pred_y_max), (0, 255, 0), 2)  # 绿色预测框
+        cv2.rectangle(vis_img_ir, (gt_x_min, gt_y_min), (gt_x_max, gt_y_max), (0, 0, 255), 2)  # 红色真实框
         ir_path = os.path.join(output_dir, f"clip_vg_pred_{sample_idx:06d}_ir.jpg")
         cv2.imwrite(ir_path, cv2.cvtColor(vis_img_ir, cv2.COLOR_RGB2BGR))
     
@@ -412,7 +454,7 @@ def visualize_dataset(args):
             bbox = pred_boxes[0].cpu()
             
             out_path = save_visualization(
-                args, pil_img_original, pil_img_ir, text, bbox,
+                args, pil_img_original, pil_img_ir, text, bbox, bbox_gt,
                 sample_idx=sample_idx,
                 output_dir=args.output_dir
             )
