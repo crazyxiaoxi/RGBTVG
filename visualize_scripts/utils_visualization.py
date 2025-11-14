@@ -94,6 +94,7 @@ def process_image(args, img_path, text, transform):
 
 def save_gt_visualization(args, pil_img_original, pil_img_ir, text, gt_bbox, sample_idx, output_dir, model_name="model"):
     """保存GT可视化结果（仅显示真实框）
+    对于RGBT模态：保存RGB图+GT框、IR图+GT框、1个txt文件、1张原图（不带框）
     
     Args:
         args: 参数对象，包含modality、dataset等配置
@@ -133,12 +134,16 @@ def save_gt_visualization(args, pil_img_original, pil_img_ir, text, gt_bbox, sam
     gt_y_max = max(0, min(gt_y_max, h - 1))
     
     Path(output_dir).mkdir(parents=True, exist_ok=True)
-    
+    # 3. 保存原图（不带框）- 只对RGBT模态保存
+    original_path = os.path.join(output_dir, f"{model_name}_{sample_idx:06d}_original.jpg")
+    cv2.imwrite(original_path, cv2.cvtColor(img_np, cv2.COLOR_RGB2BGR))
+    # 1. 保存RGB图 + GT框
     vis_img_rgb = np.ascontiguousarray(img_np)
     cv2.rectangle(vis_img_rgb, (gt_x_min, gt_y_min), (gt_x_max, gt_y_max), (0, 0, 255), 2)  # 红色真实框
-    rgb_path = os.path.join(output_dir, f"{model_name}_gt_{sample_idx:06d}_rgb.jpg")
+    rgb_path = os.path.join(output_dir, f"{model_name}_{sample_idx:06d}_rgb.jpg")
     cv2.imwrite(rgb_path, cv2.cvtColor(vis_img_rgb, cv2.COLOR_RGB2BGR))
     
+    # 2. 对于RGBT模态，保存IR图 + GT框
     if hasattr(args, 'modality') and args.modality == 'rgbt' and pil_img_ir is not None:
         img_ir_np = np.array(pil_img_ir)
 
@@ -149,10 +154,13 @@ def save_gt_visualization(args, pil_img_original, pil_img_ir, text, gt_bbox, sam
         
         vis_img_ir = np.ascontiguousarray(img_ir_np)
         cv2.rectangle(vis_img_ir, (gt_x_min, gt_y_min), (gt_x_max, gt_y_max), (0, 0, 255), 2)  # 红色真实框
-        ir_path = os.path.join(output_dir, f"{model_name}_gt_{sample_idx:06d}_ir.jpg")
+        ir_path = os.path.join(output_dir, f"{model_name}_{sample_idx:06d}_ir.jpg")
         cv2.imwrite(ir_path, cv2.cvtColor(vis_img_ir, cv2.COLOR_RGB2BGR))
+        
+
     
-    txt_path = os.path.join(output_dir, f"{model_name}_gt_{sample_idx:06d}.txt")
+    # 4. 保存文本文件
+    txt_path = os.path.join(output_dir, f"{model_name}_{sample_idx:06d}.txt")
     with open(txt_path, 'w', encoding='utf-8') as f:
         f.write(text)
     
@@ -288,3 +296,211 @@ def load_dataset(label_file):
     data = torch.load(label_file, map_location='cpu')
     print(f"Total samples in dataset: {len(data)}")
     return data
+
+
+def save_combined_pred_visualization(args, pil_img_original, pil_img_ir, predictions, img_filename, output_dir, model_name):
+    """保存合并的预测可视化结果（每个图片以文件夹形式存储）"""
+    import torch
+    import numpy as np
+    import cv2
+    from pathlib import Path
+    
+    img_np = np.array(pil_img_original)
+    h, w = img_np.shape[:2]
+    
+    # 为每个图片创建单独的文件夹
+    img_base_name = Path(img_filename).stem
+    img_folder = os.path.join(output_dir, img_base_name)
+    Path(img_folder).mkdir(parents=True, exist_ok=True)
+    
+    # 生成不同颜色用于区分不同的预测框
+    colors = [
+        (0, 255, 0),    # 绿色 - 预测框用绿色
+        (255, 0, 0),    # 红色
+        (0, 0, 255),    # 蓝色
+        (255, 255, 0),  # 黄色
+        (255, 0, 255),  # 紫色
+        (0, 255, 255),  # 青色
+        (255, 128, 0),  # 橙色
+        (128, 0, 255),  # 紫罗兰
+    ]
+    
+    # 1. 保存RGB原图（不带框）
+    rgb_original_path = os.path.join(img_folder, "rgb_original.jpg")
+    cv2.imwrite(rgb_original_path, cv2.cvtColor(img_np, cv2.COLOR_RGB2BGR))
+    
+    # 2. 对于RGBT模态，保存IR原图（不带框）
+    if hasattr(args, 'modality') and args.modality == 'rgbt' and pil_img_ir is not None:
+        img_ir_np = np.array(pil_img_ir)
+        
+        # 保存IR原图
+        ir_original_path = os.path.join(img_folder, "ir_original.jpg")
+        if img_ir_np.ndim == 2:
+            cv2.imwrite(ir_original_path, img_ir_np)
+        else:
+            cv2.imwrite(ir_original_path, cv2.cvtColor(img_ir_np, cv2.COLOR_RGB2BGR))
+    
+    # 3. 保存RGB图 + 所有预测框
+    vis_img_rgb = np.ascontiguousarray(img_np.copy())
+    
+    # 收集所有文本
+    all_texts = []
+    
+    for i, pred in enumerate(predictions):
+        bbox_pred = pred['bbox']
+        text = pred['text']
+        sample_idx = pred['sample_idx']
+        
+        # 处理bbox
+        if isinstance(bbox_pred, torch.Tensor):
+            bbox_pred = bbox_pred.cpu().numpy()
+        elif isinstance(bbox_pred, list):
+            bbox_pred = np.array(bbox_pred)
+        
+        if len(bbox_pred) == 4:
+            # 假设是xywh格式，转换为xyxy
+            x_center, y_center, bbox_w, bbox_h = bbox_pred
+            x_min = int((x_center - bbox_w / 2) * w)
+            y_min = int((y_center - bbox_h / 2) * h)
+            x_max = int((x_center + bbox_w / 2) * w)
+            y_max = int((y_center + bbox_h / 2) * h)
+        else:
+            print(f"Warning: Unexpected pred_bbox format: {bbox_pred}")
+            continue
+        
+        # 限制在图像范围内
+        x_min = max(0, min(x_min, w - 1))
+        y_min = max(0, min(y_min, h - 1))
+        x_max = max(0, min(x_max, w - 1))
+        y_max = max(0, min(y_max, h - 1))
+        
+        # 选择颜色
+        color = colors[i % len(colors)]
+        
+        # 画框
+        cv2.rectangle(vis_img_rgb, (x_min, y_min), (x_max, y_max), color, 2)
+        
+        # 添加标签（框的编号）
+        cv2.putText(vis_img_rgb, f"{i+1}", (x_min, y_min-5), 
+                   cv2.FONT_HERSHEY_SIMPLEX, 0.6, color, 2)
+        
+        # 收集文本
+        all_texts.append(f"{i+1}. {text}")
+    
+    # 保存RGB图 + 预测框
+    rgb_pred_path = os.path.join(img_folder, f"rgb_with_{model_name}_pred.jpg")
+    cv2.imwrite(rgb_pred_path, cv2.cvtColor(vis_img_rgb, cv2.COLOR_RGB2BGR))
+    
+    # 4. 对于RGBT模态，保存IR图 + 所有预测框
+    if hasattr(args, 'modality') and args.modality == 'rgbt' and pil_img_ir is not None:
+        img_ir_np = np.array(pil_img_ir)
+        
+        if img_ir_np.ndim == 2:
+            img_ir_np = np.stack([img_ir_np] * 3, axis=-1)
+        elif img_ir_np.ndim == 3 and img_ir_np.shape[2] == 1:
+            img_ir_np = np.repeat(img_ir_np, 3, axis=2)
+        
+        vis_img_ir = np.ascontiguousarray(img_ir_np.copy())
+        
+        # 画所有预测框到IR图上
+        for i, pred in enumerate(predictions):
+            bbox_pred = pred['bbox']
+            
+            if isinstance(bbox_pred, torch.Tensor):
+                bbox_pred = bbox_pred.cpu().numpy()
+            elif isinstance(bbox_pred, list):
+                bbox_pred = np.array(bbox_pred)
+            
+            if len(bbox_pred) == 4:
+                x_center, y_center, bbox_w, bbox_h = bbox_pred
+                x_min = max(0, min(int((x_center - bbox_w / 2) * w), w - 1))
+                y_min = max(0, min(int((y_center - bbox_h / 2) * h), h - 1))
+                x_max = max(0, min(int((x_center + bbox_w / 2) * w), w - 1))
+                y_max = max(0, min(int((y_center + bbox_h / 2) * h), h - 1))
+                
+                color = colors[i % len(colors)]
+                cv2.rectangle(vis_img_ir, (x_min, y_min), (x_max, y_max), color, 2)
+                cv2.putText(vis_img_ir, f"{i+1}", (x_min, y_min-5), 
+                           cv2.FONT_HERSHEY_SIMPLEX, 0.6, color, 2)
+        
+        ir_pred_path = os.path.join(img_folder, f"ir_with_{model_name}_pred.jpg")
+        cv2.imwrite(ir_pred_path, cv2.cvtColor(vis_img_ir, cv2.COLOR_RGB2BGR))
+    
+    # 5. 保存合并的文本文件
+    txt_path = os.path.join(img_folder, f"{model_name}_predictions.txt")
+    with open(txt_path, 'w', encoding='utf-8') as f:
+        f.write(f"Image: {img_filename}\n")
+        f.write(f"Model: {model_name}\n")
+        f.write(f"Total predictions: {len(predictions)}\n")
+        f.write("=" * 50 + "\n\n")
+        for text_line in all_texts:
+            f.write(text_line + "\n\n")
+    
+    return rgb_pred_path
+
+
+def generate_prediction_statistics(output_dir, prediction_stats, dataset, modality, model_name):
+    """生成预测统计报告"""
+    from pathlib import Path
+    
+    # 排序：按预测数量降序排列
+    prediction_stats.sort(key=lambda x: x['predictions'], reverse=True)
+    
+    # 计算统计信息
+    total_images = len(prediction_stats)
+    total_predictions = sum(item['predictions'] for item in prediction_stats)
+    avg_predictions = total_predictions / total_images if total_images > 0 else 0
+    
+    # 统计预测数量分布
+    prediction_counts = {}
+    for item in prediction_stats:
+        count = item['predictions']
+        prediction_counts[count] = prediction_counts.get(count, 0) + 1
+    
+    # 保存统计报告
+    stats_path = os.path.join(output_dir, "prediction_statistics.txt")
+    with open(stats_path, 'w', encoding='utf-8') as f:
+        f.write("=" * 80 + "\n")
+        f.write(f"{model_name.upper()} PREDICTION STATISTICS REPORT\n")
+        f.write("=" * 80 + "\n\n")
+        
+        f.write(f"Model: {model_name}\n")
+        f.write(f"Dataset: {dataset}\n")
+        f.write(f"Modality: {modality}\n")
+        f.write(f"Generated: {Path().absolute()}\n\n")
+        
+        f.write("SUMMARY:\n")
+        f.write("-" * 40 + "\n")
+        f.write(f"Total Images: {total_images}\n")
+        f.write(f"Total Predictions: {total_predictions}\n")
+        f.write(f"Average Predictions per Image: {avg_predictions:.2f}\n\n")
+        
+        f.write("PREDICTION COUNT DISTRIBUTION:\n")
+        f.write("-" * 40 + "\n")
+        for count in sorted(prediction_counts.keys()):
+            images_with_count = prediction_counts[count]
+            percentage = (images_with_count / total_images) * 100
+            f.write(f"{count} predictions: {images_with_count} images ({percentage:.1f}%)\n")
+        f.write("\n")
+        
+        f.write("DETAILED LIST (sorted by prediction count):\n")
+        f.write("-" * 80 + "\n")
+        f.write(f"{'Rank':<6} {'Image':<50} {'Predictions':<12}\n")
+        f.write("-" * 80 + "\n")
+        
+        for i, item in enumerate(prediction_stats, 1):
+            f.write(f"{i:<6} {item['image']:<50} {item['predictions']:<12}\n")
+    
+    # 同时生成CSV格式的统计文件
+    csv_path = os.path.join(output_dir, "prediction_statistics.csv")
+    with open(csv_path, 'w', encoding='utf-8') as f:
+        f.write("Rank,Image,Predictions\n")
+        for i, item in enumerate(prediction_stats, 1):
+            f.write(f"{i},{item['image']},{item['predictions']}\n")
+    
+    print(f"\n📊 {model_name.upper()} Prediction Statistics:")
+    print(f"   Total Images: {total_images}")
+    print(f"   Total Predictions: {total_predictions}")
+    print(f"   Average per Image: {avg_predictions:.2f}")
+    print(f"   Max Predictions: {max(item['predictions'] for item in prediction_stats) if prediction_stats else 0}")
+    print(f"   Min Predictions: {min(item['predictions'] for item in prediction_stats) if prediction_stats else 0}")

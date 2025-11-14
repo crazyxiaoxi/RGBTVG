@@ -44,7 +44,7 @@ esac
 
 # 可视化参数 - 新的目录结构：gt/数据集/模态
 OUTPUT_DIR="./visual_result/gt/${DATASET}/${MODALITY}"
-NUM_SAMPLES=100  # 可视化样本数
+NUM_SAMPLES=300  # 可视化样本数
 START_IDX=0      # 起始索引
 IMSIZE=224       # 图像尺寸
 

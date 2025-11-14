@@ -27,7 +27,7 @@ from utils.misc import NestedTensor
 from utils.box_utils import xywh2xyxy
 
 # 导入公共可视化工具
-from utils_visualization import process_image, save_pred_visualization, load_dataset
+from utils_visualization import process_image, save_pred_visualization, load_dataset, save_combined_pred_visualization, generate_prediction_statistics
 
 
 def get_args_parser():
@@ -200,7 +200,7 @@ def load_model(args):
 
 
 def visualize_dataset(args):
-    """可视化数据集样本"""
+    """可视化数据集，按图片分组处理"""
     # 设置GPU
     os.environ["CUDA_VISIBLE_DEVICES"] = args.gpu_id
     device = torch.device(args.device)
@@ -218,6 +218,37 @@ def visualize_dataset(args):
     
     print(f"Visualizing samples {args.start_idx} to {end_idx-1} (total: {len(samples_to_process)})")
     
+    # 按图片文件名分组
+    image_groups = {}
+    for idx, item in enumerate(samples_to_process):
+        sample_idx = args.start_idx + idx
+        
+        # 解析数据格式
+        if str(args.dataset).startswith('rgbtvg'):
+            img_filename = item[0]
+            img_size = item[1]
+            bbox_gt = item[2]
+            text = item[3]
+            lighting = item[4] if len(item) > 4 else None
+            scale_cls = item[5] if len(item) > 5 else None
+        else:
+            img_filename = item[0]
+            bbox_gt = item[2]
+            text = item[3]
+        
+        # 按图片文件名分组
+        if img_filename not in image_groups:
+            image_groups[img_filename] = []
+        
+        image_groups[img_filename].append({
+            'sample_idx': sample_idx,
+            'bbox_gt': bbox_gt,
+            'text': text,
+            'item': item
+        })
+    
+    print(f"Found {len(image_groups)} unique images with annotations")
+    
     # 创建输出目录
     Path(args.output_dir).mkdir(parents=True, exist_ok=True)
     args.visual_output_dir = args.output_dir
@@ -225,79 +256,93 @@ def visualize_dataset(args):
     # 构建变换
     transform = make_transforms(args, 'val')
     
-    # 处理每个样本
+    # 处理每个图片组
     success_count = 0
     fail_count = 0
+    processed_images = 0
+    prediction_stats = []  # 用于统计每个图片的预测数量
     
-    for idx, item in enumerate(samples_to_process):
-        sample_idx = args.start_idx + idx
-        
-        # 解析数据格式: [image_filename, img_id, bbox(xywh), text]
-        img_filename = item[0]
-        bbox_gt = item[2]  # ground truth bbox
-        text = item[3]
-        
-        # 构建完整图像路径
+    for img_filename, group_items in image_groups.items():
+        processed_images += 1
         img_path = os.path.join(args.dataroot, img_filename)
         
         try:
-            # 处理图像
-            result = process_image(args, img_path, text, transform)
+            # 使用第一个样本来处理图像（所有样本使用同一张图）
+            first_item = group_items[0]
+            result = process_image(args, img_path, first_item['text'], transform)
             if result is None:
-                fail_count += 1
+                fail_count += len(group_items)
                 continue
             
             # 根据模态解析返回值
             if args.modality == 'rgbt':
                 if len(result) != 4:
-                    fail_count += 1
+                    fail_count += len(group_items)
                     continue
                 img_tensor, img_mask, pil_img_original, pil_img_ir = result
             else:
                 if len(result) != 3:
-                    fail_count += 1
+                    fail_count += len(group_items)
                     continue
                 img_tensor, img_mask, pil_img_original = result
                 pil_img_ir = None
             
             if img_tensor is None:
-                fail_count += 1
+                fail_count += len(group_items)
                 continue
             
-            # 准备模型输入
-            img_tensor = img_tensor.unsqueeze(0).to(device)
-            img_mask = img_mask.unsqueeze(0).to(device)
-            img_nt = NestedTensor(img_tensor, img_mask)
-            texts = [text]
+            # 为每个查询进行预测
+            predictions = []
+            for item in group_items:
+                text = item['text']
+                
+                # 准备模型输入
+                img_tensor_batch = img_tensor.unsqueeze(0).to(device)
+                img_mask_batch = img_mask.unsqueeze(0).to(device)
+                img_nt = NestedTensor(img_tensor_batch, img_mask_batch)
+                texts = [text]
+                
+                # 模型推理
+                with torch.no_grad():
+                    pred_box, pred_seg, img_cls, text_cls = model(img_nt.tensors, img_nt.mask, texts)
+                bbox = pred_box[0].cpu()
+                
+                predictions.append({
+                    'bbox': bbox,
+                    'text': text,
+                    'sample_idx': item['sample_idx']
+                })
             
-            # 模型推理
-            with torch.no_grad():
-                pred_box, pred_seg, img_cls, text_cls = model(img_nt.tensors, img_nt.mask, texts)
-            
-            # 可视化结果
-            bbox = pred_box[0].cpu()
-            
-            out_path = save_pred_visualization(
-                args, pil_img_original, pil_img_ir, text, bbox,
-                sample_idx=sample_idx,
-                output_dir=args.output_dir,
-                model_name="oneref"
+            # 保存合并的预测可视化
+            save_combined_pred_visualization(
+                args, pil_img_original, pil_img_ir, predictions, 
+                img_filename, args.output_dir, "oneref"
             )
             
-            success_count += 1
-            if (idx + 1) % 10 == 0:
-                print(f"Progress: {idx + 1}/{len(samples_to_process)} - Success: {success_count}, Failed: {fail_count}")
+            # 记录统计信息
+            prediction_stats.append({
+                'image': img_filename,
+                'predictions': len(predictions)
+            })
+            
+            success_count += len(group_items)
+            print(f"Processed image {processed_images}/{len(image_groups)}: {img_filename} ({len(group_items)} predictions)")
         
         except Exception as e:
-            print(f"Error processing sample {sample_idx} ({img_filename}): {str(e)}")
-            fail_count += 1
+            print(f"Error processing image {img_filename}: {str(e)}")
+            fail_count += len(group_items)
             continue
     
+    # 生成统计报告
+    generate_prediction_statistics(args.output_dir, prediction_stats, args.dataset, args.modality, "oneref")
+    
     print(f"\nVisualization complete!")
-    print(f"Total processed: {len(samples_to_process)}")
+    print(f"Total images processed: {processed_images}")
+    print(f"Total predictions: {len(samples_to_process)}")
     print(f"Success: {success_count}")
     print(f"Failed: {fail_count}")
     print(f"Results saved to: {args.output_dir}")
+    print(f"Statistics report saved to: {args.output_dir}/prediction_statistics.txt")
 
 
 def main():

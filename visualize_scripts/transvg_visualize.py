@@ -21,7 +21,7 @@ from utils.misc import NestedTensor
 from transformers import BertTokenizer
 
 # 导入公共可视化工具
-from utils_visualization import process_image, save_pred_visualization, load_dataset
+from utils_visualization import process_image, save_pred_visualization, load_dataset, save_combined_pred_visualization, generate_prediction_statistics
 
 
 def get_args_parser():
@@ -169,7 +169,7 @@ def load_model(args, device):
 
 
 def visualize_dataset(args):
-    """可视化数据集"""
+    """可视化数据集，按图片分组处理"""
     # 设置GPU
     os.environ['CUDA_VISIBLE_DEVICES'] = args.gpu_id
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
@@ -184,112 +184,149 @@ def visualize_dataset(args):
     # 加载数据集
     dataset = load_dataset(args.label_file)
     
-    # 选择要可视化的样本
-    end_idx = min(args.start_idx + args.num_samples, len(dataset))
+    # 确定要可视化的样本范围
+    end_idx = args.start_idx + args.num_samples if args.num_samples > 0 else len(dataset)
+    end_idx = min(end_idx, len(dataset))
     samples_to_process = dataset[args.start_idx:end_idx]
-    print(f"Visualizing samples {args.start_idx} to {end_idx - 1} (total: {len(samples_to_process)})")
     
-    # 构建变换
-    transform = make_transforms(args, 'val')
+    print(f"Visualizing samples {args.start_idx} to {end_idx-1} (total: {len(samples_to_process)})")
     
-    # 处理每个样本
-    success_count = 0
-    fail_count = 0
-    
+    # 按图片文件名分组
+    image_groups = {}
     for idx, item in enumerate(samples_to_process):
         sample_idx = args.start_idx + idx
         
-        # 解析数据格式: RGBTVG格式是 [img_file, img_size, bbox, phrase, lighting, scale_cls]
+        # 解析数据格式
         if str(args.dataset).startswith('rgbtvg'):
             img_filename = item[0]
-            img_size = item[1]  # 可能是字典 {"height": x, "width": y}
+            img_size = item[1]
             bbox_gt = item[2]
             text = item[3]
             lighting = item[4] if len(item) > 4 else None
             scale_cls = item[5] if len(item) > 5 else None
         else:
-            # 其他数据集格式: [img_file, _, bbox, phrase, ...]
             img_filename = item[0]
             bbox_gt = item[2]
             text = item[3]
         
-        # 构建完整图像路径
+        # 按图片文件名分组
+        if img_filename not in image_groups:
+            image_groups[img_filename] = []
+        
+        image_groups[img_filename].append({
+            'sample_idx': sample_idx,
+            'bbox_gt': bbox_gt,
+            'text': text,
+            'item': item
+        })
+    
+    print(f"Found {len(image_groups)} unique images with annotations")
+    
+    # 构建变换
+    transform = make_transforms(args, 'val')
+    
+    # 处理每个图片组
+    success_count = 0
+    fail_count = 0
+    processed_images = 0
+    prediction_stats = []  # 用于统计每个图片的预测数量
+    
+    for img_filename, group_items in image_groups.items():
+        processed_images += 1
         img_path = os.path.join(args.dataroot, img_filename)
         
         try:
-            # 处理图像
-            result = process_image(args, img_path, text, transform)
+            # 使用第一个样本来处理图像（所有样本使用同一张图）
+            first_item = group_items[0]
+            result = process_image(args, img_path, first_item['text'], transform)
             if result is None:
-                fail_count += 1
+                fail_count += len(group_items)
                 continue
             
             # 根据模态解析返回值
             if args.modality == 'rgbt':
                 if len(result) != 4:
-                    fail_count += 1
+                    fail_count += len(group_items)
                     continue
                 img_tensor, img_mask, pil_img_original, pil_img_ir = result
             else:
                 if len(result) != 3:
-                    fail_count += 1
+                    fail_count += len(group_items)
                     continue
                 img_tensor, img_mask, pil_img_original = result
                 pil_img_ir = None
             
             if img_tensor is None:
-                fail_count += 1
+                fail_count += len(group_items)
                 continue
             
-            # 准备模型输入
-            img_tensor = img_tensor.unsqueeze(0).to(device)
-            img_mask = img_mask.unsqueeze(0).to(device)
-            img_nt = NestedTensor(img_tensor, img_mask)
+            # 为每个查询进行预测
+            predictions = []
+            for item in group_items:
+                text = item['text']
+                
+                # 准备模型输入
+                img_tensor_batch = img_tensor.unsqueeze(0).to(device)
+                img_mask_batch = img_mask.unsqueeze(0).to(device)
+                img_nt = NestedTensor(img_tensor_batch, img_mask_batch)
+                
+                # TransVG使用BERT tokenizer，完全模拟训练时的数据流程
+                from datasets.data_loader import read_examples, convert_examples_to_features
+                
+                # 使用与训练时相同的tokenizer和参数
+                examples = read_examples(text, 0)  # idx=0 for visualization
+                features = convert_examples_to_features(
+                    examples=examples, seq_length=args.max_query_len, tokenizer=tokenizer)
+                
+                word_id = features[0].input_ids
+                word_mask = features[0].input_mask
+                
+                # 完全按照collate_fn的处理方式
+                word_id_tensor = torch.tensor(np.array([word_id]), dtype=torch.long).to(device)
+                word_mask_tensor = torch.from_numpy(np.array([word_mask])).to(device)
+                text_nt = NestedTensor(word_id_tensor, word_mask_tensor)
+                
+                # 模型推理
+                with torch.no_grad():
+                    pred_boxes = model(img_nt, text_nt)
+                bbox = pred_boxes[0].cpu()
+                
+                predictions.append({
+                    'bbox': bbox,
+                    'text': text,
+                    'sample_idx': item['sample_idx']
+                })
             
-            # TransVG使用BERT tokenizer，完全模拟训练时的数据流程
-            from datasets.data_loader import read_examples, convert_examples_to_features
-            
-            # 使用与训练时相同的tokenizer和参数
-            examples = read_examples(text, 0)  # idx=0 for visualization
-            features = convert_examples_to_features(
-                examples=examples, seq_length=args.max_query_len, tokenizer=tokenizer)
-            
-            word_id = features[0].input_ids
-            word_mask = features[0].input_mask
-            
-            # 完全按照collate_fn的处理方式
-            word_id_tensor = torch.tensor(np.array([word_id]), dtype=torch.long).to(device)  # (1, seq_len)
-            word_mask_tensor = torch.from_numpy(np.array([word_mask])).to(device)  # (1, seq_len)
-            text_nt = NestedTensor(word_id_tensor, word_mask_tensor)  # 注意：这里word_mask直接用，不取反
-            
-            # 模型推理
-            with torch.no_grad():
-                # TransVG模型期望(img_nt, text_nt)
-                pred_boxes = model(img_nt, text_nt)
-            
-            # 可视化结果（使用原始图像）
-            bbox = pred_boxes[0].cpu()
-            
-            out_path = save_pred_visualization(
-                args, pil_img_original, pil_img_ir, text, bbox,
-                sample_idx=sample_idx,
-                output_dir=args.output_dir,
-                model_name="transvg"
+            # 保存合并的预测可视化
+            save_combined_pred_visualization(
+                args, pil_img_original, pil_img_ir, predictions, 
+                img_filename, args.output_dir, "transvg"
             )
             
-            success_count += 1
-            if (idx + 1) % 10 == 0:
-                print(f"Progress: {idx + 1}/{len(samples_to_process)} - Success: {success_count}, Failed: {fail_count}")
+            # 记录统计信息
+            prediction_stats.append({
+                'image': img_filename,
+                'predictions': len(predictions)
+            })
+            
+            success_count += len(group_items)
+            print(f"Processed image {processed_images}/{len(image_groups)}: {img_filename} ({len(group_items)} predictions)")
         
         except Exception as e:
-            print(f"Error processing sample {sample_idx} ({img_filename}): {str(e)}")
-            fail_count += 1
+            print(f"Error processing image {img_filename}: {str(e)}")
+            fail_count += len(group_items)
             continue
     
+    # 生成统计报告
+    generate_prediction_statistics(args.output_dir, prediction_stats, args.dataset, args.modality, "transvg")
+    
     print(f"\nVisualization complete!")
-    print(f"Total processed: {len(samples_to_process)}")
+    print(f"Total images processed: {processed_images}")
+    print(f"Total predictions: {len(samples_to_process)}")
     print(f"Success: {success_count}")
     print(f"Failed: {fail_count}")
     print(f"Results saved to: {args.output_dir}")
+    print(f"Statistics report saved to: {args.output_dir}/prediction_statistics.txt")
 
 
 def main():

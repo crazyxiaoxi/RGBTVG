@@ -15,9 +15,10 @@ source ~/anaconda3/etc/profile.d/conda.sh
 conda activate rgbtvg
 
 # 定义数据集和模态
-DATASETS=("rgbtvg_flir" "rgbtvg_m3fd" "rgbtvg_mfad")
+# DATASETS=("rgbtvg_flir" "rgbtvg_m3fd" "rgbtvg_mfad")
+DATASETS=("rgbtvg_m3fd" )
 MODALITIES=("rgb" "ir" "rgbt")
-
+# MODALITIES=("rgbt")
 # 计数器
 TOTAL_TESTS=9
 CURRENT_TEST=0
