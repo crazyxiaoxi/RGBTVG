@@ -31,13 +31,13 @@ export DATASET
 echo "===== Start M3FD training ====="
 stdbuf -oL -eL bash ./script_train/OneRef_base_rec/single.sh 2>&1 | tee logs/OneRef_base_rec/$MODALITY/$IMGSIZE"_"$BATCHSIZE"_m3fd.log"
 
-DATASET="rgbtvg_mfad"
-export DATASET
-echo "===== Start MFAD training ====="
-stdbuf -oL -eL bash ./script_train/OneRef_base_rec/single.sh 2>&1 | tee logs/OneRef_base_rec/$MODALITY/$IMGSIZE"_"$BATCHSIZE"_mfad.log"
+# DATASET="rgbtvg_mfad"
+# export DATASET
+# echo "===== Start MFAD training ====="
+# stdbuf -oL -eL bash ./script_train/OneRef_base_rec/single.sh 2>&1 | tee logs/OneRef_base_rec/$MODALITY/$IMGSIZE"_"$BATCHSIZE"_mfad.log"
 
 
-DATASET="rgbtvg_mixup"
-export DATASET
-echo "===== Start MIXUP training ====="
-stdbuf -oL -eL bash ./script_train/OneRef_base_rec/mixup.sh 2>&1 | tee logs/OneRef_base_rec/$MODALITY/$IMGSIZE"_"$BATCHSIZE"_mixup.log"
+# DATASET="rgbtvg_mixup"
+# export DATASET
+# echo "===== Start MIXUP training ====="
+# stdbuf -oL -eL bash ./script_train/OneRef_base_rec/mixup.sh 2>&1 | tee logs/OneRef_base_rec/$MODALITY/$IMGSIZE"_"$BATCHSIZE"_mixup.log"
