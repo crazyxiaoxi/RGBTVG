@@ -25,7 +25,7 @@ def get_args_parser():
     # 数据集参数
     parser.add_argument('--dataset', default='rgbtvg_flir', type=str, help='数据集名称')
     parser.add_argument('--modality', default='rgb', type=str, choices=['rgb', 'ir', 'rgbt'], help='图像模态')
-    parser.add_argument('--num_samples', default=100, type=int, help='可视化样本数量')
+    parser.add_argument('--num_samples', default=0, type=int, help='可视化样本数量（0表示使用整个数据集）')
     parser.add_argument('--start_idx', default=0, type=int, help='起始索引')
     
     # 图像参数
@@ -107,8 +107,11 @@ def visualize_gt_only(args):
     # 加载数据集
     dataset = load_dataset(args.label_file)
     
-    # 选择要可视化的样本
-    end_idx = min(args.start_idx + args.num_samples, len(dataset))
+    # 选择要可视化的样本（num_samples=0 表示整个数据集）
+    if args.num_samples > 0:
+        end_idx = min(args.start_idx + args.num_samples, len(dataset))
+    else:
+        end_idx = len(dataset)
     samples_to_process = dataset[args.start_idx:end_idx]
     print(f"Visualizing GT for samples {args.start_idx} to {end_idx - 1} (total: {len(samples_to_process)})")
     

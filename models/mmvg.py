@@ -2,7 +2,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from .vl_transformer import build_vl_transformer
-# import pdb
+import pdb
 from .clip import *
 from torchvision.transforms import Resize
 from utils.misc import (NestedTensor, nested_tensor_from_tensor_list)
@@ -153,13 +153,12 @@ class CLIP_Cross_Attention(nn.Module):
     def forward(
         self,
         hidden_states: torch.Tensor,
-        text_states: torch.Tensor,
+        hidden_states_2: torch.Tensor,
         attention_mask: Optional[torch.Tensor] = None,
         causal_attention_mask: Optional[torch.Tensor] = None,
         output_attentions: Optional[bool] = False,
     ) -> Tuple[torch.Tensor, Optional[torch.Tensor], Optional[Tuple[torch.Tensor]]]:
         """Input shape: Batch x Time x Channel"""
-
         bsz, tgt_len, embed_dim = hidden_states.size()
 
         # get query proj
@@ -167,9 +166,9 @@ class CLIP_Cross_Attention(nn.Module):
         query_states = self.q_proj(hidden_states) * self.scale
         query_states = self._shape(query_states, -1, bsz)  #torch.Size([32, 12, 197, 64])
 
-        key_states = self._shape(self.k_proj(text_states).transpose(0,1), -1, bsz) #torch.Size([77, 32, 768])->torch.Size([32, 12, 77, 64])
+        key_states = self._shape(self.k_proj(hidden_states_2), -1, bsz) #torch.Size([77, 32, 768])->torch.Size([32, 12, 77, 64])
         # todo检查self._shape
-        value_states = self._shape(self.v_proj(text_states).transpose(0,1), -1, bsz)
+        value_states = self._shape(self.v_proj(hidden_states_2), -1, bsz)
 
         proj_shape = (bsz * self.num_heads, -1, self.head_dim)
         query_states = query_states.view(*proj_shape) #torch.Size([32*12, 197, 64])
@@ -216,7 +215,7 @@ class CLIP_Cross_Attention(nn.Module):
             attn_weights_reshaped = None
 
         attn_probs = nn.functional.dropout(attn_weights, p=self.dropout, training=self.training)
-  
+
         attn_output = torch.bmm(attn_probs, value_states)
    
         if attn_output.size() != (bsz * self.num_heads, tgt_len, self.head_dim):
@@ -231,6 +230,148 @@ class CLIP_Cross_Attention(nn.Module):
 
 
         attn_output = self.out_proj(attn_output)
+        return attn_output, attn_weights_reshaped
+
+class CLIP_Cross_Attention_VS(nn.Module):
+    """Multi-headed attention from 'Attention Is All You Need' paper"""
+
+    def __init__(self, config):
+        super().__init__()
+        self.config = config
+        self.embed_dim = config.hidden_size
+        self.num_heads = config.num_attention_heads
+        self.head_dim = self.embed_dim // self.num_heads
+        if self.head_dim * self.num_heads != self.embed_dim:
+            raise ValueError(
+                f"embed_dim must be divisible by num_heads (got `embed_dim`: {self.embed_dim} and `num_heads`:"
+                f" {self.num_heads})."
+            )
+        self.scale = self.head_dim**-0.5
+        self.dropout = config.attention_dropout
+
+        self.k_proj = nn.Linear(self.embed_dim, self.embed_dim)    
+        self.v_proj = nn.Linear(self.embed_dim, self.embed_dim) 
+        self.q_proj = nn.Linear(self.embed_dim, self.embed_dim)
+        self.out_proj = nn.Linear(self.embed_dim, self.embed_dim)
+
+    def _shape(self, tensor: torch.Tensor, seq_len: int, bsz: int):
+
+        # print(torch.equal(aa.flatten(), tensor.flatten()))
+        return tensor.contiguous().view(bsz, seq_len, self.num_heads, self.head_dim).transpose(1, 2).contiguous()
+
+    def forward(
+            self,
+            hidden_states: torch.Tensor,  # 作为 Key/Value 的来源（原逻辑中是 Query 来源）
+            text_states: torch.Tensor,  # 作为 Query 的来源（原逻辑中是 Key/Value 来源）
+            attention_mask: Optional[torch.Tensor] = None,
+            causal_attention_mask: Optional[torch.Tensor] = None,
+            output_attentions: Optional[bool] = False,
+    ) -> Tuple[torch.Tensor, Optional[torch.Tensor], Optional[Tuple[torch.Tensor]]]:
+        """
+        输入形状：
+        - hidden_states: (bsz, src_len, embed_dim)  # 作为 Key/Value
+        - text_states: (bsz, tgt_len, embed_dim)    # 作为 Query
+        """
+
+        # 获取文本序列长度（Query 长度）和批次大小
+        text_len,bsz,  embed_dim = text_states.size()  # 这里改为从 text_states 取形状（因为它是 Query）
+        # 获取图像/隐藏状态序列长度（Key/Value 长度）
+        tgt_len = hidden_states.size(1)  # hidden_states 形状：(bsz, tgt_len, embed_dim)
+
+        # --------------------------
+        # 1. 生成 Query（来自 text_states）
+        # --------------------------
+
+        query_states = self.q_proj(text_states) * self.scale  # text 作为 Query
+        query_states = self._shape(query_states, text_len, bsz)  # 形状：(bsz, num_heads, text_len, head_dim)
+
+        # --------------------------
+        # 2. 生成 Key 和 Value（来自 hidden_states）
+        # --------------------------
+        # Key 投影 + 形状调整：(bsz, tgt_len, embed_dim) → (bsz, num_heads, tgt_len, head_dim)
+        key_states = self._shape(self.k_proj(hidden_states), tgt_len, bsz)
+        # Value 投影 + 形状调整：同上
+        value_states = self._shape(self.v_proj(hidden_states), tgt_len, bsz)
+
+        # --------------------------
+        # 3. 调整形状以进行批量矩阵乘法
+        # --------------------------
+        proj_shape = (bsz * self.num_heads, -1, self.head_dim)
+        query_states = query_states.view(*proj_shape)  # (bsz*num_heads, text_len, head_dim)
+        key_states = key_states.view(*proj_shape)  # (bsz*num_heads, tgt_len, head_dim)
+        value_states = value_states.view(*proj_shape)  # (bsz*num_heads,tgt_len, head_dim)
+
+        # --------------------------
+        # 4. 计算注意力权重
+        # --------------------------
+        # 注意力分数：(bsz*num_heads, text_len,tgt_len)
+        attn_weights = torch.bmm(query_states, key_states.transpose(1, 2))
+
+        # 检查注意力权重形状是否正确
+        if attn_weights.size() != (bsz * self.num_heads,text_len,tgt_len):
+            raise ValueError(
+                f"Attention weights should be of size {(bsz * self.num_heads, text_len,tgt_len)}, but is"
+                f" {attn_weights.size()}"
+            )
+
+        # --------------------------
+        # 5. 应用掩码（若有）
+        # --------------------------
+        # 因果掩码（若需要，例如文本生成时的自注意力）
+        if causal_attention_mask is not None:
+            if causal_attention_mask.size() != (bsz, 1,text_len,tgt_len):
+                raise ValueError(
+                    f"Causal attention mask should be of size {(bsz, 1, text_len,tgt_len)}, but is"
+                    f" {causal_attention_mask.size()}"
+                )
+            # 重塑后加掩码
+            attn_weights = attn_weights.view(bsz, self.num_heads, text_len, tgt_len) + causal_attention_mask
+            attn_weights = attn_weights.view(bsz * self.num_heads, text_len, tgt_len)
+
+        # 普通注意力掩码（例如padding掩码）
+        if attention_mask is not None:
+            if attention_mask.size() != (bsz, 1,text_len, tgt_len):
+                raise ValueError(
+                    f"Attention mask should be of size {(bsz, 1, text_len,tgt_len)}, but is {attention_mask.size()}"
+                )
+            # 重塑后加掩码
+            attn_weights = attn_weights.view(bsz, self.num_heads, text_len, tgt_len) + attention_mask
+            attn_weights = attn_weights.view(bsz * self.num_heads, text_len, tgt_len)
+
+        # --------------------------
+        # 6. 注意力归一化与 dropout
+        # --------------------------
+        attn_weights = nn.functional.softmax(attn_weights, dim=-1)
+        attn_probs = nn.functional.dropout(attn_weights, p=self.dropout, training=self.training)
+
+        # --------------------------
+        # 7. 计算注意力输出
+        # --------------------------
+        text_guided_vision= torch.bmm(attn_probs, value_states)  # (bsz*num_heads, text_len, head_dim)
+        attn_weights_t = attn_weights.transpose(1, 2)
+        # 聚合文本信息到视觉维度：(16*num_heads, 197, 64) → 与原始视觉长度一致
+        attn_output = torch.bmm(attn_weights_t, text_guided_vision)
+        if attn_output.size() != (bsz * self.num_heads, tgt_len, self.head_dim):
+            raise ValueError(
+                f"`attn_output` should be of size {(bsz * self.num_heads, tgt_len, self.head_dim)}, but is"
+                f" {attn_output.size()}"
+            )
+
+        # --------------------------
+        # 8. 重塑输出并投影
+        # --------------------------
+        attn_output = attn_output.view(bsz, self.num_heads, tgt_len, self.head_dim)  # 恢复多头维度
+        attn_output = attn_output.transpose(1, 2)  # (bsz, tgt_len, num_heads, head_dim)
+        attn_output = attn_output.reshape(bsz, tgt_len, embed_dim)  # 合并多头：(bsz, tgt_len, embed_dim)
+
+        attn_output = self.out_proj(attn_output)  # 最终线性投影
+
+        # 输出注意力权重（若需要）
+        if output_attentions:
+            attn_weights_reshaped = attn_weights.view(bsz, self.num_heads, text_len, tgt_len)
+        else:
+            attn_weights_reshaped = None
+
         return attn_output, attn_weights_reshaped
 
 
@@ -375,23 +516,33 @@ class TOKEN_MLP(nn.Module):
         return hidden_states
 
 
-class CLIPEncoderLayer_with_Crossmodal_Bridge(nn.Module):
+class CLIPEncoderLayer_with_Crossmodal_Text_Guided_Fusion(nn.Module):
 
     def __init__(self, args, i, clip_encoder_layer, config: CLIPConfig, adapt_layer, extract_text_layer, text_config):
         super().__init__()
+        self.args = args
         self.embed_dim = clip_encoder_layer.embed_dim
         self.self_attn = clip_encoder_layer.self_attn
 
-        """ Multi-layer Adaptive Cross-modal Bridge """
-        self.enable_adaptive_weights = args.enable_adaptive_weights
+        """ Multi-layer Adaptive Cross-modal Text_Guided_Fusion """
+        # self.enable_adaptive_weights = args.enable_adaptive_weights
         if i in adapt_layer:
-            self.cross_norm = nn.LayerNorm(self.embed_dim, eps=config.layer_norm_eps)  # eps=1e-05
-            self.cross_attn = CLIP_Cross_Attention(config)
-            self.cross_mlp = CLIPMLP(config)
+            if self.args.modality == 'rgb':
+                self.cross_norm_sv = nn.LayerNorm(self.embed_dim, eps=config.layer_norm_eps)  # eps=1e-05
+                self.cross_attn_sv = CLIP_Cross_Attention_VS(config)
+                self.cross_mlp_sv = CLIPMLP(config)
+            elif self.args.modality == 'rgbt':
+                self.cross_norm_st = nn.LayerNorm(self.embed_dim, eps=config.layer_norm_eps)  # eps=1e-05
+                self.cross_norm_sv = nn.LayerNorm(self.embed_dim, eps=config.layer_norm_eps)  # eps=1e-05
+                self.cross_attn_st = CLIP_Cross_Attention_VS(config)
+                self.cross_attn_sv = CLIP_Cross_Attention_VS(config)
+                self.cross_mlp_st = CLIPMLP(config)
+                self.cross_mlp_sv = CLIPMLP(config)
 
-            text_embed_dim = text_config.hidden_size  # 512 for base model, 768 for Large model
-            self.cross_gate = nn.Linear(text_embed_dim * len(extract_text_layer), self.embed_dim)  # clip vision 768
-            self.cross_adaptive_weights = nn.ModuleList([nn.Embedding(77, text_embed_dim) for i in range(len(extract_text_layer))])
+
+        text_embed_dim = text_config.hidden_size  # 512 for base model, 768 for Large model
+        # self.cross_gate = nn.Linear(text_embed_dim * len(extract_text_layer), self.embed_dim)  # clip vision 768
+        # self.cross_adaptive_weights = nn.ModuleList([nn.Embedding(77, text_embed_dim) for i in range(len(extract_text_layer))])
 
         self.layer_norm1 = clip_encoder_layer.layer_norm1
         self.mlp = clip_encoder_layer.mlp
@@ -403,6 +554,7 @@ class CLIPEncoderLayer_with_Crossmodal_Bridge(nn.Module):
         layer,
         adapt_layer,
         text_states,
+        cur_modality,
         attention_mask: torch.Tensor,
         causal_attention_mask: torch.Tensor,
         output_attentions: Optional[bool] = False,
@@ -427,35 +579,36 @@ class CLIPEncoderLayer_with_Crossmodal_Bridge(nn.Module):
             output_attentions=output_attentions,
         )
         hidden_states = residual + hidden_states
-        """ Multi-layer Adaptive Cross-modal Bridge """
+        """ Multi-layer Adaptive Cross-modal Text_Guided_Fusion """
         if layer in adapt_layer:
-            residual = hidden_states
-            hidden_states = self.cross_norm(hidden_states)
-            if self.enable_adaptive_weights:
-                adpt_text_states = []
-                for i, embed_layer in enumerate(self.cross_adaptive_weights):
-                    adaptive_weights = torch.mul(embed_layer.weight.unsqueeze(0).repeat(text_states[i].shape[0], 1, 1),
-                                                 text_states[i].to(hidden_states.dtype))
+            text_guided_fusion = True
+            if text_guided_fusion == True:
 
-                    adpt_text_state = adaptive_weights + text_states[i].to(hidden_states.dtype)
-                    adpt_text_states.append(adpt_text_state)
-                adpt_text_states = torch.cat(adpt_text_states, dim=-1).to(hidden_states.dtype)
-                adpt_text_states = self.cross_gate(adpt_text_states)
-                adpt_text_states = adpt_text_states.permute(1, 0, 2)  # B L H --> L B H
-
-            else:
-                adpt_text_states = text_states[-1].to(hidden_states.dtype).permute(1, 0, 2)
-            hidden_states, attn_weights = self.cross_attn(
-                hidden_states=hidden_states,
-                text_states=adpt_text_states,
-                attention_mask=attention_mask,
-                causal_attention_mask=causal_attention_mask,
-                output_attentions=output_attentions,
-            )
-
-             
-            hidden_states = self.cross_mlp(hidden_states)
-    
+                if cur_modality=='ir':
+                    residual = hidden_states
+                    hidden_states = self.cross_norm_st(hidden_states)
+                    text_states = text_states[-1].to(hidden_states.dtype).permute(1, 0, 2)
+                    
+                    hidden_states, attn_weights = self.cross_attn_st(
+                        hidden_states=hidden_states,
+                        text_states=text_states,
+                        attention_mask=attention_mask,
+                        causal_attention_mask=causal_attention_mask,
+                        output_attentions=output_attentions,
+                    )
+                    hidden_states = self.cross_mlp_st(hidden_states)
+                else:
+                    residual = hidden_states
+                    hidden_states = self.cross_norm_sv(hidden_states)
+                    text_states = text_states[-1].to(hidden_states.dtype).permute(1, 0, 2)
+                    hidden_states, attn_weights = self.cross_attn_sv(
+                        hidden_states=hidden_states,
+                        text_states=text_states,
+                        attention_mask=attention_mask,
+                        causal_attention_mask=causal_attention_mask,
+                        output_attentions=output_attentions,
+                    )
+                    hidden_states = self.cross_mlp_sv(hidden_states)
             hidden_states = residual + hidden_states
 
         residual = hidden_states
@@ -471,7 +624,7 @@ class CLIPEncoderLayer_with_Crossmodal_Bridge(nn.Module):
         return outputs
 
 
-class CLIPEncoder_with_Crossmodal_Bridge(nn.Module):
+class CLIPEncoder_with_Crossmodal_Text_Guided_Fusion(nn.Module):
     """
     Transformer encoder consisting of `config.num_hidden_layers` self attention layers. Each layer is a
     [`CLIPEncoderLayer`].
@@ -483,7 +636,7 @@ class CLIPEncoder_with_Crossmodal_Bridge(nn.Module):
     def __init__(self, args, clip_encoder, adapt_layer, extract_text_layer, text_config):
         super().__init__()
         self.config = clip_encoder.config
-        self.layers = nn.ModuleList([CLIPEncoderLayer_with_Crossmodal_Bridge(args, i, clip_encoder.layers[i], self.config,
+        self.layers = nn.ModuleList([CLIPEncoderLayer_with_Crossmodal_Text_Guided_Fusion(args, i, clip_encoder.layers[i], self.config,
                                                                              adapt_layer, extract_text_layer,
                                                                              text_config)
                                      for i in range(self.config.num_hidden_layers)])
@@ -494,6 +647,7 @@ class CLIPEncoder_with_Crossmodal_Bridge(nn.Module):
         inputs_embeds,
         adapt_layer,
         text_states,
+        cur_modality,
         attention_mask: Optional[torch.Tensor] = None,
         causal_attention_mask: Optional[torch.Tensor] = None,
         output_attentions: Optional[bool] = None,
@@ -543,33 +697,31 @@ class CLIPEncoder_with_Crossmodal_Bridge(nn.Module):
             if output_hidden_states:
                 encoder_states = encoder_states + (hidden_states,)
             if self.gradient_checkpointing and self.training:
-
-                def create_custom_forward(module):
-                    def custom_forward(*inputs):
-                        return module(*inputs, output_attentions)
-
-                    return custom_forward
-
                 layer_outputs = torch.utils.checkpoint.checkpoint(
                     create_custom_forward(encoder_layer),
-                    hidden_states,
-                    idx,
-                    adapt_layer,
-                    text_states,
-                    attention_mask,
-                    causal_attention_mask,
-                )
+                    hidden_states=hidden_states,
+                    layer = idx,
+                    adapt_layer = adapt_layer,
+                    text_states = text_states,
+                    cur_modality = cur_modality,
+                    attention_mask=attention_mask,
+                    causal_attention_mask=causal_attention_mask,
+                    output_attentions=output_attentions,
+                    )
+
             else:
                 layer_outputs = encoder_layer(
-                    hidden_states,
-                    idx,
-                    adapt_layer,
-                    text_states,
-                    attention_mask,
-                    causal_attention_mask,
-                    output_attentions=output_attentions,
-                )
 
+                    hidden_states=hidden_states,
+                    layer = idx,
+                    adapt_layer = adapt_layer,
+                    text_states = text_states,
+                    cur_modality=cur_modality,
+                    attention_mask=attention_mask,
+                    causal_attention_mask=causal_attention_mask,
+                    output_attentions=output_attentions,
+
+                )
             hidden_states = layer_outputs[0]
 
             if output_attentions:
@@ -584,13 +736,13 @@ class CLIPEncoder_with_Crossmodal_Bridge(nn.Module):
         return {"last_hidden_state": hidden_states, "hidden_states": encoder_states, "attentions": all_attentions}
 
 
-class CLIP_Vision_Model_with_Crossmodal_Bridge(nn.Module):
+class CLIP_Vision_Model_with_Crossmodal_Text_Guided_Fusion(nn.Module):
     def __init__(self, args, clip_visu_model, adapt_layer, extract_text_layer, text_config):
         super().__init__()
         self.config = clip_visu_model.config
         self.embeddings = Modified_CLIPVisionEmbeddings(args, clip_visu_model.embeddings)
         self.pre_layrnorm = clip_visu_model.pre_layrnorm  # 原版代码拼错了
-        self.encoder = CLIPEncoder_with_Crossmodal_Bridge(args, clip_visu_model.encoder, adapt_layer, extract_text_layer,
+        self.encoder = CLIPEncoder_with_Crossmodal_Text_Guided_Fusion(args, clip_visu_model.encoder, adapt_layer, extract_text_layer,
                                                           text_config)
         self.post_layernorm = clip_visu_model.post_layernorm
 
@@ -601,6 +753,7 @@ class CLIP_Vision_Model_with_Crossmodal_Bridge(nn.Module):
         adapt_layer,
         text_states,
         reg_src,
+        cur_modality,
         pixel_values: Optional[torch.FloatTensor] = None,
         output_attentions: Optional[bool] = None,
         output_hidden_states: Optional[bool] = None,
@@ -626,6 +779,7 @@ class CLIP_Vision_Model_with_Crossmodal_Bridge(nn.Module):
             inputs_embeds=hidden_states,
             adapt_layer=adapt_layer,
             text_states=text_states,
+            cur_modality=cur_modality,
             output_attentions=output_attentions,
             output_hidden_states=output_hidden_states,
             return_dict=return_dict,
@@ -708,9 +862,18 @@ class MMVG(nn.Module):
 
         print("adapt_layer: ", self.adapt_layer)
 
-        self.clip.vision_model = CLIP_Vision_Model_with_Crossmodal_Bridge(args, self.clip.vision_model,
+        self.clip.vision_model = CLIP_Vision_Model_with_Crossmodal_Text_Guided_Fusion(args, self.clip.vision_model,
                                                                           self.adapt_layer, self.extract_text_layer,
                                                                           self.clip.text_model.config)
+        self.cross_fusion_layers_vt = nn.ModuleList()
+        self.cross_fusion_layers_tv = nn.ModuleList()
+        if self.args.modality =="rgbt":
+            for _ in self.extract_vision_layer:
+                cross_attn_vt = CLIP_Cross_Attention(self.clip.vision_model.encoder.config)
+                cross_attn_tv = CLIP_Cross_Attention(self.clip.vision_model.encoder.config)
+                self.cross_fusion_layers_vt.append(cross_attn_vt)
+                self.cross_fusion_layers_tv.append(cross_attn_tv)
+
         """
             srameter in self.clip.parameters():
                         parameter.requires_grad_(False)elf.clip.print_trainable_parameters()
@@ -719,7 +882,9 @@ class MMVG(nn.Module):
             different learning rates and numbers of epochs at various stages for specific model configurations.
             If you do not need to enable HiLoRA, simply leave args.hi_lora_stage=0 as the default.
         """
-        self.set_HiLoRA(args)
+        open_lora = True
+        self.open_lora = open_lora
+        self.set_HiLoRA(args,open_lora)
 
         self.hidden_dim = self.clip.projection_dim  # base model 512，large model 768
         self.imsize = args.imsize
@@ -765,15 +930,16 @@ class MMVG(nn.Module):
                                             padding=(0, 0), output_padding=(0, 0), bias=False)  # bias=False
         self.seg_conv3 = nn.ConvTranspose2d(in_channels=hidden_dim, out_channels=hidden_dim, kernel_size=(2, 2), stride=(2, 2),
                                             padding=(0, 0), output_padding=(0, 0), bias=False)  # bias=False
-    def set_HiLoRA(self, args):
-        open_lora = True
-        open_text_bridge = True
+    def set_HiLoRA(self, args,open_lora):
+        
+        open_text_text_guided_fusion = True
         close_lora_parameter_update = False
         close_lora_vision_parameter_update = False
         close_lora_text_parameter_update = False
 
         if open_lora:
-            target_modules = ["q_proj", "k_proj", "v_proj", "out_proj", "fc_in", "fc_out", "wte"]
+            target_modules = ["self_attn.q_proj", "self_attn.k_proj", "self_attn.v_proj", "self_attn.out_proj",
+                                                            "fc_in", "fc_out", "wte"]
             #peft_config = LoraConfig(target_modules=target_modules, inference_mode=False, r=32, lora_alpha=16,
             #                         lora_dropout=0.1, bias='none')
             peft_config_rgb = LoraConfig(task_type = "FEATURE_EXTRACTION", target_modules=target_modules, inference_mode=False, r=16, lora_alpha=16,lora_dropout=0.1, bias='none')
@@ -786,6 +952,7 @@ class MMVG(nn.Module):
             for parameter in self.clip.parameters():
                 parameter.requires_grad_(False)
             self.clip.print_trainable_parameters()
+
             if args.hi_lora_stage == 1:
                 print("open lora stage 1")
                 #self.clip = get_peft_model(self.clip, peft_config)
@@ -878,12 +1045,12 @@ class MMVG(nn.Module):
                     for parameter in self.clip.text_model.parameters():
                         parameter.requires_grad_(False)
                     self.clip.print_trainable_parameters()
-            if open_text_bridge == True:
-                print("Open Multi-layer Adaptive Cross-modal Bridge parameters ...")
+            if open_text_text_guided_fusion == True:
+                print("Open Multi-layer Adaptive Cross-modal Text_Guided_Fusion parameters ...")
                 for name, param in self.clip.vision_model.encoder.layers.named_parameters():
-                    if "cross_attn" in str(name).split(".") or "cross_norm" in str(name).split(".") \
-                      or "cross_mlp" in str(name).split(".") or "cross_gate" in str(name).split(".") \
-                      or "cross_adaptive_weights" in str(name).split("."):
+                    if "cross_attn_sv" in str(name).split(".") or "cross_attn_st" in str(name).split(".") or\
+                            "cross_norm_sv" in str(name).split(".") or "cross_norm_st" in str(name).split(".") \
+                      or "cross_mlp_sv" in str(name).split(".") or "cross_mlp_st" in str(name).split("."):
                         print("param name: ", name)
                         param.requires_grad_(True)
             self.clip.print_trainable_parameters()
@@ -913,9 +1080,8 @@ class MMVG(nn.Module):
         return text_tensors, text_mask
 
     def forward(self, img_data, text_data):
-        # import pdb
-        # pdb.set_trace()
-        self.clip.set_adapter("lora_rgb")
+        if self.open_lora:
+            self.clip.set_adapter("lora_rgb")
         if self.args.modality =="rgbt":
             image_tensors_ir=img_data.tensors[:,3:,:,:].repeat(1,3,1,1)
             img_data_ir_mask=img_data.mask
@@ -945,34 +1111,57 @@ class MMVG(nn.Module):
         #     with open(f"./bs4_output_{i}.txt", "w") as f:
         #         print(clip_image_features["hidden_states"][i][0],file=f)
         #     f.close()
-        self.clip.set_adapter("lora_rgb")        
-        clip_image_features = self.clip.vision_model(self.adapt_layer, ml_text_features, reg_src, image_tensors,
-                                                     output_attentions=True, output_hidden_states=True,
+        if self.open_lora:
+            self.clip.set_adapter("lora_rgb")        
+
+        clip_image_features = self.clip.vision_model(adapt_layer = self.adapt_layer, 
+                                                     text_states = ml_text_features, 
+                                                     reg_src =reg_src, 
+                                                     cur_modality = "rgb",
+                                                     pixel_values = image_tensors, 
+                                                     output_attentions=True, 
+                                                     output_hidden_states=True,
                                                      return_dict=True)  # B * 197 * 512
         # attention_map = clip_image_features["attentions"]  # tuple, used for draw the attention map
 
         ml_image_features = [clip_image_features["hidden_states"][i] for i in self.extract_vision_layer]
         img_cls_embed = self.clip.visual_projection(clip_image_features["pooler_output"])  # torch.Size([64, 512])
 
-        ml_image_features = torch.cat(ml_image_features, dim=2)
-        image_features = self.ml_visual_projection(ml_image_features)
-        visu_src = self.visu_proj(image_features.float())  # (N*B)xC
         if self.args.modality =="rgbt":
-            self.clip.set_adapter("lora_ir")
-            clip_image_features_ir = self.clip.vision_model(self.adapt_layer, ml_text_features, reg_src, image_tensors_ir,
-                                                    output_attentions=True, output_hidden_states=True,
-                                                    return_dict=True)  # B * 197 * 512
+            if self.open_lora:
+                self.clip.set_adapter("lora_ir")
+            clip_image_features_ir = self.clip.vision_model(adapt_layer = self.adapt_layer, 
+                                                     text_states = ml_text_features, 
+                                                     reg_src =reg_src, 
+                                                     cur_modality = "ir",
+                                                     pixel_values = image_tensors_ir, 
+                                                     output_attentions=True, 
+                                                     output_hidden_states=True,
+                                                     return_dict=True)  # B * 197 * 512
             # attention_map_ir = clip_image_features["attentions"]  # tuple, used for draw the attention map
 
             ml_image_features_ir = [clip_image_features_ir["hidden_states"][i] for i in self.extract_vision_layer]
             img_cls_embed_ir = self.clip.visual_projection(clip_image_features_ir["pooler_output"])  # torch.Size([64, 512])
+            for i in range(len(self.extract_vision_layer)):
 
+                ml_image_features_fusion_vt,_ = self.cross_fusion_layers_vt[i](ml_image_features[i], ml_image_features_ir[i],  attention_mask=None,causal_attention_mask=None,output_attentions=True)
+                ml_image_features_fusion_tv,_ = self.cross_fusion_layers_tv[i](ml_image_features_ir[i], ml_image_features[i],  attention_mask=None,causal_attention_mask=None,output_attentions=True)
+                ml_image_features[i] = ml_image_features[i]+ml_image_features_fusion_vt
+                ml_image_features_ir[i] =  ml_image_features_ir[i] +ml_image_features_fusion_tv
+            # for i,cross_fusion in enumerate(.cross_fusion_layers):
+            #     #TODO
+        ml_image_features = torch.cat(ml_image_features, dim=2)
+        image_features = self.ml_visual_projection(ml_image_features)
+        visu_src = self.visu_proj(image_features.float())  # (N*B)xC
+        if self.args.modality =='rgbt':
             ml_image_features_ir = torch.cat(ml_image_features_ir, dim=2)
-            # ml_image_features = torch.cat([ml_image_features,ml_image_features_ir], dim=2)
             image_features_ir = self.ml_visual_projection(ml_image_features_ir)
+
             visu_src_ir = self.visu_proj(image_features_ir.float())  # (N*B)xC
             visu_src_ir = visu_src_ir.permute(1, 0, 2)  # 197 * 4 * 512
-            self.clip.set_adapter("lora_rgb")
+            if self.open_lora:
+                self.clip.set_adapter("lora_rgb")
+
         text_src = self.text_proj(text_features.float())  # B * 77 * 512
 
         # permute BxLenxC to LenxBxC

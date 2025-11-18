@@ -21,7 +21,7 @@ from utils.misc import NestedTensor
 from transformers import BertTokenizer
 
 # 导入公共可视化工具
-from utils_visualization import process_image, save_pred_visualization, load_dataset, save_combined_pred_visualization, generate_prediction_statistics
+from utils_visualization import process_image, save_pred_visualization, load_dataset, generate_prediction_statistics
 
 
 def get_args_parser():
@@ -36,7 +36,7 @@ def get_args_parser():
     # 数据集参数
     parser.add_argument('--dataset', default='rgbtvg_flir', type=str, help='数据集名称')
     parser.add_argument('--modality', default='rgb', type=str, choices=['rgb', 'ir', 'rgbt'], help='图像模态')
-    parser.add_argument('--num_samples', default=100, type=int, help='可视化样本数量')
+    parser.add_argument('--num_samples', default=0, type=int, help='可视化样本数量（0表示使用整个数据集）')
     parser.add_argument('--start_idx', default=0, type=int, help='起始索引')
     
     # 训练相关参数（模型初始化需要，但可视化时不使用）
@@ -297,9 +297,9 @@ def visualize_dataset(args):
                     'sample_idx': item['sample_idx']
                 })
             
-            # 保存合并的预测可视化
-            save_combined_pred_visualization(
-                args, pil_img_original, pil_img_ir, predictions, 
+            # 保存合并的预测可视化（单图，多框，编号+颜色区分）
+            save_pred_visualization(
+                args, pil_img_original, pil_img_ir, predictions,
                 img_filename, args.output_dir, "transvg"
             )
             

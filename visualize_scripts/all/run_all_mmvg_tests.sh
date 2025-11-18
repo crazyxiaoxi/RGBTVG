@@ -1,26 +1,24 @@
 #!/bin/bash
-# ===================== MDETR_resnet全面测试脚本 =====================
-# 自动测试所有数据集和模态组合
-# 使用示例：bash run_all_mdetr_resnet_tests.sh
+# ===================== MMVG Base 全面测试脚本 =====================
+# 3 个数据集 × 3 个模态 = 9 个测试组合
+# 使用示例：bash visualize_scripts/all/run_all_hivg_tests.sh
 
-echo "🚀 开始MDETR_resnet全面测试..."
+echo "🚀 开始 MMVG 全面测试..."
 echo "测试范围："
-echo "  - 数据集: flir, m3fd, mfad"
-echo "  - 模态: rgb, ir, rgbt"
-echo "  - 总计: 9种组合"
+echo "  - 数据集: rgbtvg_flir, rgbtvg_m3fd, rgbtvg_mfad"
+echo "  - 模态: rgbt"
+echo "  - 总计: 3 种组合"
 echo "========================================"
-
-
 
 # 定义数据集和模态
 DATASETS=("rgbtvg_flir" "rgbtvg_m3fd" "rgbtvg_mfad")
-MODALITIES=("rgb" "ir" "rgbt")
+MODALITIES=("rgbt")
 
 # 模型路径基础目录
-MODEL_BASE_PATH="../dataset_and_pretrain_model/result/MDETR_resnet"
+MODELASE_PATH="../dataset_and_pretrain_model/result/MMVG"
 
 # 计数器
-TOTAL_TESTS=9
+TOTAL_TESTS=3
 CURRENT_TEST=0
 SUCCESS_COUNT=0
 FAILED_TESTS=()
@@ -32,18 +30,17 @@ START_TIME=$(date +%s)
 for dataset in "${DATASETS[@]}"; do
     for modality in "${MODALITIES[@]}"; do
         CURRENT_TEST=$((CURRENT_TEST + 1))
-        
-        # 构建模型路径
+
         # 从数据集名称提取简短名称 (rgbtvg_flir -> flir)
         DATASET_SHORT=$(echo $dataset | sed 's/rgbtvg_//')
-        MODEL_CHECKPOINT="${MODEL_BASE_PATH}/MDETR_resnet_224_${modality}_${DATASET_SHORT}_best.pth"
-        
+        MODEL_CHECKPOINT="${MODELASE_PATH}/MMVG_${modality}_${DATASET_SHORT}_best.pth"
+
         echo ""
         echo "📊 测试 $CURRENT_TEST/$TOTAL_TESTS: $dataset + $modality"
         echo "   模型: $MODEL_CHECKPOINT"
-        echo "   输出: ./visual_result/mdetr_resnet/$dataset/$modality"
+        echo "   输出: ./visual_result/mmvg/$dataset/$modality"
         echo "----------------------------------------"
-        
+
         # 检查模型文件是否存在
         if [ ! -f "$MODEL_CHECKPOINT" ]; then
             echo "❌ 警告: 模型文件不存在: $MODEL_CHECKPOINT"
@@ -51,18 +48,18 @@ for dataset in "${DATASETS[@]}"; do
             FAILED_TESTS+=("$dataset-$modality (模型文件不存在)")
             continue
         fi
-        
+
         # 运行测试
-        if bash visualize_scripts/shell_scripts/visualize_mdetr_resnet.sh "$dataset" "$modality" "$MODEL_CHECKPOINT"; then
+        if bash visualize_scripts/shell_scripts/visualize_mmvg.sh "$dataset" "$modality" "$MODEL_CHECKPOINT"; then
             echo "✅ 测试成功: $dataset + $modality"
             SUCCESS_COUNT=$((SUCCESS_COUNT + 1))
         else
             echo "❌ 测试失败: $dataset + $modality"
             FAILED_TESTS+=("$dataset-$modality")
         fi
-        
+
         echo "----------------------------------------"
-        
+
         # 短暂暂停避免GPU过载
         sleep 2
     done
@@ -75,7 +72,7 @@ MINUTES=$((DURATION / 60))
 SECONDS=$((DURATION % 60))
 
 echo ""
-echo "🎉 MDETR_resnet全面测试完成！"
+echo "🎉 MMVG 全面测试完成！"
 echo "========================================"
 echo "📈 测试统计:"
 echo "   总测试数: $TOTAL_TESTS"
@@ -91,34 +88,12 @@ if [ ${#FAILED_TESTS[@]} -gt 0 ]; then
     done
 fi
 
-echo ""
-echo "📁 结果目录结构:"
-echo "visual_result/mdetr_resnet/"
-echo "├── rgbtvg_flir/"
-echo "│   ├── rgb/     # RGB模态结果"
-echo "│   ├── ir/      # IR模态结果"
-echo "│   └── rgbt/    # RGBT模态结果 (双图像输出)"
-echo "├── rgbtvg_m3fd/"
-echo "│   ├── rgb/"
-echo "│   ├── ir/"
-echo "│   └── rgbt/"
-echo "└── rgbtvg_mfad/"
-echo "    ├── rgb/"
-echo "    ├── ir/"
-echo "    └── rgbt/"
-
-echo ""
-echo "💡 提示:"
-echo "   - RGBT模态会生成两张图片: *_rgb.jpg 和 *_ir.jpg"
-echo "   - 每个测试默认生成100个样本"
-echo "   - 如需修改样本数，请编辑 visualize_mdetr_resnet.sh 中的 NUM_SAMPLES"
-
 if [ $SUCCESS_COUNT -eq $TOTAL_TESTS ]; then
     echo ""
-    echo "🎊 所有测试都成功完成！"
+    echo "🎊 所有 MMVG 测试都成功完成！"
     exit 0
 else
     echo ""
-    echo "⚠️  部分测试失败，请检查上述失败列表"
+    echo "⚠️  部分 MMVG 测试失败，请检查上述失败列表"
     exit 1
 fi

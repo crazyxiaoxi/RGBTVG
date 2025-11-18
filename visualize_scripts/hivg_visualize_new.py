@@ -22,8 +22,217 @@ from utils.visual_utils import visualization
 import cv2
 from utils.box_utils import xywh2xyxy
 
-# 导入公共可视化工具
-from utils_visualization import process_image, save_pred_visualization, load_dataset, generate_prediction_statistics
+import numpy as np
+from PIL import Image
+from pathlib import Path
+
+
+def load_dataset(label_file):
+    """加载HiVG使用的数据集文件"""
+    if not os.path.exists(label_file):
+        raise FileNotFoundError(f"Dataset file not found: {label_file}")
+
+    print(f"Loading dataset from: {label_file}")
+    data = torch.load(label_file, map_location="cpu")
+    print(f"Total samples in dataset: {len(data)}")
+    return data
+
+
+def process_image_hivg(args, img_path, text, transform):
+    """HiVG 专用图像处理逻辑，模仿 dataloader 行为。
+
+    返回:
+        RGBT: (img_tensor, img_mask, pil_img_original, pil_img_ir)
+        其他: (img_tensor, img_mask, pil_img_original)
+    """
+    pil_img_original = None
+    pil_img_ir = None
+
+    if args.modality == "rgbt":
+        # 自动配对 RGB / IR
+        if "/rgb/" in img_path:
+            rgb_path = img_path
+            ir_path = img_path.replace("/rgb/", "/ir/")
+        elif "/ir/" in img_path:
+            ir_path = img_path
+            rgb_path = img_path.replace("/ir/", "/rgb/")
+        else:
+            rgb_path = img_path
+            ir_path = img_path.replace("rgb", "ir")
+
+        if not os.path.exists(rgb_path) or not os.path.exists(ir_path):
+            print(f"Warning: RGB or IR image not found: {rgb_path}, {ir_path}")
+            return None, None, None, None
+
+        img_rgb = Image.open(rgb_path).convert("RGB")
+        img_ir = Image.open(ir_path)
+
+        pil_img_original = img_rgb.copy()
+        pil_img_ir = img_ir.copy()
+
+        np_rgb = np.array(img_rgb)
+        np_ir = np.array(img_ir)
+        if np_ir.ndim == 3 and np_ir.shape[-1] == 3:
+            np_ir = np_ir[..., 0]
+        if np_ir.ndim == 2:
+            np_ir = np.expand_dims(np_ir, axis=-1)
+        np_combined = np.concatenate([np_rgb, np_ir], axis=-1)
+        img = Image.fromarray(np_combined)
+
+        w, h = img.size
+        full_box_xyxy = torch.tensor([0.0, 0.0, float(w - 1), float(h - 1)], dtype=torch.float32)
+
+        input_dict = {"img": img, "box": full_box_xyxy, "text": text}
+        input_dict = transform(input_dict)
+
+        return input_dict["img"], input_dict["mask"], pil_img_original, pil_img_ir
+
+    # 非 RGBT，直接读取为 RGB
+    if not os.path.exists(img_path):
+        print(f"Warning: Image not found: {img_path}")
+        return None, None, None
+
+    pil_img = Image.open(img_path).convert("RGB")
+    pil_img_original = pil_img.copy()
+
+    w, h = pil_img.size
+    full_box_xyxy = torch.tensor([0.0, 0.0, float(w - 1), float(h - 1)], dtype=torch.float32)
+
+    input_dict = {"img": pil_img, "box": full_box_xyxy, "text": text}
+    input_dict = transform(input_dict)
+
+    return input_dict["img"], input_dict["mask"], pil_img_original
+
+
+def save_hivg_visualization(pil_img_original, predictions, img_filename, output_dir):
+    """为 HiVG 保存单张图像上的多框预测结果。
+
+    - 每张原图输出一张 RGB 图
+    - 文件名与原图一致
+    - 不做数据集特定的 Y 轴偏移
+    - 使用多种颜色和编号区分不同 bbox
+    """
+    img_np = np.array(pil_img_original)
+    h, w = img_np.shape[:2]
+
+    Path(output_dir).mkdir(parents=True, exist_ok=True)
+    img_base_name = Path(img_filename).name
+    save_path = os.path.join(output_dir, img_base_name)
+
+    colors = [
+        (0, 255, 0),
+        (255, 0, 0),
+        (0, 0, 255),
+        (255, 255, 0),
+        (255, 0, 255),
+        (0, 255, 255),
+        (255, 128, 0),
+        (128, 0, 255),
+    ]
+
+    vis_img_rgb = np.ascontiguousarray(img_np.copy())
+
+    for i, pred in enumerate(predictions):
+        bbox = pred.get("bbox", None)
+        if bbox is None:
+            continue
+
+        if isinstance(bbox, torch.Tensor):
+            bbox = bbox.cpu().numpy()
+        elif isinstance(bbox, list):
+            bbox = np.array(bbox)
+
+        if len(bbox) != 4:
+            print(f"Warning: Unexpected pred_bbox format: {bbox}")
+            continue
+
+        # 归一化 (xc, yc, w, h) -> 像素坐标，HiVG 不做额外偏移
+        x_center, y_center, bw, bh = bbox
+        print("debug!!!!!!", x_center, y_center, bw, bh)
+        x_min = int((x_center - bw / 2) * w)
+        y_min = int((y_center - bh / 2) * w)
+        x_max = int((x_center + bw / 2) * w)
+        y_max = int((y_center + bh / 2) * w)
+
+        x_min = max(0, min(x_min, w - 1))
+        y_min = max(0, min(y_min, w - 1))
+        x_max = max(0, min(x_max, w - 1))
+        y_max = max(0, min(y_max, w - 1))
+
+        color = colors[i % len(colors)]
+        cv2.rectangle(vis_img_rgb, (x_min, y_min), (x_max, y_max), color, 2)
+        cv2.putText(
+            vis_img_rgb,
+            f"{i+1}",
+            (x_min, max(0, y_min - 5)),
+            cv2.FONT_HERSHEY_SIMPLEX,
+            0.6,
+            color,
+            2,
+        )
+
+    cv2.imwrite(save_path, cv2.cvtColor(vis_img_rgb, cv2.COLOR_RGB2BGR))
+    return save_path
+
+
+def generate_prediction_statistics(output_dir, prediction_stats, dataset, modality, model_name):
+    """生成预测统计报告（复制自通用实现但独立于 utils_visualization）。"""
+    prediction_stats.sort(key=lambda x: x["predictions"], reverse=True)
+
+    total_images = len(prediction_stats)
+    total_predictions = sum(item["predictions"] for item in prediction_stats)
+    avg_predictions = total_predictions / total_images if total_images > 0 else 0
+
+    prediction_counts = {}
+    for item in prediction_stats:
+        count = item["predictions"]
+        prediction_counts[count] = prediction_counts.get(count, 0) + 1
+
+    stats_path = os.path.join(output_dir, "prediction_statistics.txt")
+    with open(stats_path, "w", encoding="utf-8") as f:
+        f.write("=" * 80 + "\n")
+        f.write(f"{model_name.upper()} PREDICTION STATISTICS REPORT\n")
+        f.write("=" * 80 + "\n\n")
+
+        f.write(f"Model: {model_name}\n")
+        f.write(f"Dataset: {dataset}\n")
+        f.write(f"Modality: {modality}\n")
+        f.write(f"Generated: {Path().absolute()}\n\n")
+
+        f.write("SUMMARY:\n")
+        f.write("-" * 40 + "\n")
+        f.write(f"Total Images: {total_images}\n")
+        f.write(f"Total Predictions: {total_predictions}\n")
+        f.write(f"Average Predictions per Image: {avg_predictions:.2f}\n\n")
+
+        f.write("PREDICTION COUNT DISTRIBUTION:\n")
+        f.write("-" * 40 + "\n")
+        for count in sorted(prediction_counts.keys()):
+            images_with_count = prediction_counts[count]
+            percentage = (images_with_count / total_images) * 100
+            f.write(f"{count} predictions: {images_with_count} images ({percentage:.1f}%)\n")
+        f.write("\n")
+
+        f.write("DETAILED LIST (sorted by prediction count):\n")
+        f.write("-" * 80 + "\n")
+        f.write(f"{'Rank':<6} {'Image':<50} {'Predictions':<12}\n")
+        f.write("-" * 80 + "\n")
+
+        for i, item in enumerate(prediction_stats, 1):
+            f.write(f"{i:<6} {item['image']:<50} {item['predictions']:<12}\n")
+
+    csv_path = os.path.join(output_dir, "prediction_statistics.csv")
+    with open(csv_path, "w", encoding="utf-8") as f:
+        f.write("Rank,Image,Predictions\n")
+        for i, item in enumerate(prediction_stats, 1):
+            f.write(f"{i},{item['image']},{item['predictions']}\n")
+
+    print(f"\n📊 {model_name.upper()} Prediction Statistics:")
+    print(f"   Total Images: {total_images}")
+    print(f"   Total Predictions: {total_predictions}")
+    print(f"   Average per Image: {avg_predictions:.2f}")
+    print(f"   Max Predictions: {max(item['predictions'] for item in prediction_stats) if prediction_stats else 0}")
+    print(f"   Min Predictions: {min(item['predictions'] for item in prediction_stats) if prediction_stats else 0}")
 
 
 def get_args_parser():
@@ -109,23 +318,6 @@ def load_model(args):
     """加载HiVG模型"""
     print(f"Loading model from: {args.model_checkpoint}")
     
-    checkpoint = torch.load(args.model_checkpoint, map_location='cpu')
-
-    if 'args' in checkpoint:
-        ckpt_args = checkpoint['args']
-
-        ckpt_args.gpu_id = getattr(args, 'gpu_id', getattr(ckpt_args, 'gpu_id', '0'))
-        ckpt_args.output_dir = getattr(args, 'output_dir', getattr(ckpt_args, 'output_dir', './visual_result/hivg'))
-        ckpt_args.num_samples = getattr(args, 'num_samples', getattr(ckpt_args, 'num_samples', 0))
-        ckpt_args.start_idx = getattr(args, 'start_idx', getattr(ckpt_args, 'start_idx', 0))
-        ckpt_args.label_file = getattr(args, 'label_file', getattr(ckpt_args, 'label_file', ''))
-        ckpt_args.dataroot = getattr(args, 'dataroot', getattr(ckpt_args, 'dataroot', ''))
-        ckpt_args.model_checkpoint = args.model_checkpoint
-        ckpt_args.device = getattr(args, 'device', getattr(ckpt_args, 'device', 'cuda'))
-
-        args = ckpt_args
-        print("Using model configuration from checkpoint (with visualization overrides)")
-    
     # 根据模型类型调整hidden_dim
     if args.model == "ViT-L/14" or args.model == "ViT-L/14@336px":
         args.vl_hidden_dim = 768
@@ -134,6 +326,7 @@ def load_model(args):
     model = build_model(args)
     
     # 加载checkpoint
+    checkpoint = torch.load(args.model_checkpoint, map_location='cpu')
     missing_keys, unexpected_keys = model.load_state_dict(checkpoint['model'], strict=False)
     
     if missing_keys:
@@ -146,7 +339,7 @@ def load_model(args):
     model.to(args.device)
     model.eval()
     
-    return model, args
+    return model
 
 
 
@@ -157,9 +350,9 @@ def visualize_dataset(args):
     device = torch.device(args.device)
     
     # 加载模型
-    model, args = load_model(args)
+    model = load_model(args)
     
-    # 加载数据集
+    # 加载数据集（本文件内的专用实现）
     dataset = load_dataset(args.label_file)
     
     # 确定要可视化的样本范围
@@ -179,13 +372,13 @@ def visualize_dataset(args):
             img_filename = item[0]
             img_size = item[1]
             bbox_gt = item[2]
-            text = item[3].lower()
+            text = item[3]
             lighting = item[4] if len(item) > 4 else None
             scale_cls = item[5] if len(item) > 5 else None
         else:
             img_filename = item[0]
             bbox_gt = item[2]
-            text = item[3].lower()
+            text = item[3]
         
         # 按图片文件名分组
         if img_filename not in image_groups:
@@ -219,9 +412,7 @@ def visualize_dataset(args):
         try:
             # 使用第一个样本来处理图像（所有样本使用同一张图）
             first_item = group_items[0]
-
-
-            result = process_image(args, img_path, first_item['text'], transform)
+            result = process_image_hivg(args, img_path, first_item['text'], transform)
             if result is None:
                 fail_count += len(group_items)
                 continue
@@ -242,7 +433,7 @@ def visualize_dataset(args):
             if img_tensor is None:
                 fail_count += len(group_items)
                 continue
-
+            
             # 为每个查询进行预测
             predictions = []
             for item in group_items:
@@ -259,6 +450,7 @@ def visualize_dataset(args):
                     # HiVG模型返回tuple: (pred_box, logits_per_text, logits_per_image, visu_token_similarity, seg_mask)
                     outputs = model(img_nt, texts)
                     pred_boxes = outputs[0]  # pred_box是第一个元素
+                
                 bbox = pred_boxes[0].cpu()
                 
                 predictions.append({
@@ -268,9 +460,9 @@ def visualize_dataset(args):
                 })
             
             # 保存合并的预测可视化（单图，多框，编号+颜色区分）
-            save_pred_visualization(
-                args, pil_img_original, pil_img_ir, predictions,
-                img_filename, args.output_dir, "hivg"
+            save_hivg_visualization(
+                pil_img_original, predictions,
+                img_filename, args.output_dir,
             )
             
             # 记录统计信息

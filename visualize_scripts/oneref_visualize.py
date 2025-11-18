@@ -27,7 +27,7 @@ from utils.misc import NestedTensor
 from utils.box_utils import xywh2xyxy
 
 # 导入公共可视化工具
-from utils_visualization import process_image, save_pred_visualization, load_dataset, save_combined_pred_visualization, generate_prediction_statistics
+from utils_visualization import process_image, save_pred_visualization, load_dataset, generate_prediction_statistics
 
 
 def get_args_parser():
@@ -63,7 +63,7 @@ def get_args_parser():
     # Visualization parameters
     parser.add_argument('--output_dir', type=str, default='./visual_result/oneref',
                         help='Output directory for visualization results')
-    parser.add_argument('--num_samples', type=int, default=100,
+    parser.add_argument('--num_samples', type=int, default=0,
                         help='Number of samples to visualize (0 means all)')
     parser.add_argument('--start_idx', type=int, default=0,
                         help='Starting index in the dataset')
@@ -313,9 +313,9 @@ def visualize_dataset(args):
                     'sample_idx': item['sample_idx']
                 })
             
-            # 保存合并的预测可视化
-            save_combined_pred_visualization(
-                args, pil_img_original, pil_img_ir, predictions, 
+            # 保存合并的预测可视化（单图，多框，编号+颜色区分）
+            save_pred_visualization(
+                args, pil_img_original, pil_img_ir, predictions,
                 img_filename, args.output_dir, "oneref"
             )
             

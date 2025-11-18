@@ -10,9 +10,6 @@ echo "  - 模态: rgb, ir, rgbt"
 echo "  - 总计: 9种组合"
 echo "========================================"
 
-# 激活conda环境
-source ~/anaconda3/etc/profile.d/conda.sh
-conda activate rgbtvg
 
 # 定义数据集和模态
 DATASETS=("rgbtvg_flir" "rgbtvg_m3fd" "rgbtvg_mfad")

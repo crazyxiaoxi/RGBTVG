@@ -3,9 +3,6 @@
 # 使用示例：
 # bash visualize_scripts/shell_scripts/visualize_oneref.sh
 
-# 激活conda环境（如果需要）
-# source ~/anaconda3/etc/profile.d/conda.sh
-# conda activate rgbtvg
 
 # ===================== 配置参数 =====================
 # 模型相关
@@ -17,12 +14,12 @@ SENTENCEPIECE="../dataset_and_pretrain_model/pretrain_model/pretrained_weights/B
 # 数据相关
 DATASET="rgbtvg_flir"  # 数据集名称: rgbtvg_flir, rgbtvg_m3fd, rgbtvg_mfad
 MODALITY="rgb"         # 模态: rgb, ir, rgbt
-LABEL_FILE="../dataset_and_pretrain_model/datasets/VG/ref_data_shuffled/rgbtvg_flir/rgbtvg_flir_train.pth"
+LABEL_FILE="../dataset_and_pretrain_model/datasets/VG/ref_data_shuffled/rgbtvg_flir/rgbtvg_flir_val.pth"
 DATAROOT="../dataset_and_pretrain_model/datasets/VG/image_data/rgbtvg/rgbtvg-images/flir/rgb/"
 
 # 可视化参数
 OUTPUT_DIR="./visual_result/oneref_${DATASET}_${MODALITY}"
-NUM_SAMPLES=100        # 要可视化的样本数量（0表示全部）
+NUM_SAMPLES=0        # 要可视化的样本数量（0表示全部）
 START_IDX=0            # 起始索引
 IMSIZE=224             # 图像大小
 

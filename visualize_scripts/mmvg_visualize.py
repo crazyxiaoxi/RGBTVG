@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-HiVG模型可视化脚本
+MMVG模型可视化脚本
 基于数据集文件（.pth）进行批量可视化预测结果
 """
 import os
@@ -14,7 +14,7 @@ from PIL import Image
 # 添加父目录到path以便导入模块
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-# HiVG model imports
+# MMVG model imports
 from models import build_model
 from datasets import make_transforms
 from utils.misc import NestedTensor
@@ -27,12 +27,12 @@ from utils_visualization import process_image, save_pred_visualization, load_dat
 
 
 def get_args_parser():
-    parser = argparse.ArgumentParser('HiVG Visualization Script', add_help=False)
+    parser = argparse.ArgumentParser('MMVG Visualization Script', add_help=False)
     
     # Basic model parameters
-    parser.add_argument('--model_name', type=str, default='HiVG', help='model name')
+    parser.add_argument('--model_name', type=str, default='MMVG', help='model name')
     parser.add_argument('--sup_type', default='full', type=str)
-    
+    parser.add_argument('--old_dataloader',default=False , type=bool)
     # Model parameters
     parser.add_argument('--model', type=str, default='ViT-B/16', 
                         help="Name of CLIP model (ViT-B/16 or ViT-L/14)")
@@ -51,7 +51,7 @@ def get_args_parser():
                         help='Modality type')
     
     # Visualization parameters
-    parser.add_argument('--output_dir', type=str, default='./visual_result/hivg',
+    parser.add_argument('--output_dir', type=str, default='./visual_result/mmvg',
                         help='Output directory for visualization results')
     parser.add_argument('--num_samples', type=int, default=0,
                         help='Number of samples to visualize (0 means all)')
@@ -106,7 +106,7 @@ def get_args_parser():
 
 
 def load_model(args):
-    """加载HiVG模型"""
+    """加载MMVG模型"""
     print(f"Loading model from: {args.model_checkpoint}")
     
     checkpoint = torch.load(args.model_checkpoint, map_location='cpu')
@@ -115,7 +115,7 @@ def load_model(args):
         ckpt_args = checkpoint['args']
 
         ckpt_args.gpu_id = getattr(args, 'gpu_id', getattr(ckpt_args, 'gpu_id', '0'))
-        ckpt_args.output_dir = getattr(args, 'output_dir', getattr(ckpt_args, 'output_dir', './visual_result/hivg'))
+        ckpt_args.output_dir = getattr(args, 'output_dir', getattr(ckpt_args, 'output_dir', './visual_result/mmvg'))
         ckpt_args.num_samples = getattr(args, 'num_samples', getattr(ckpt_args, 'num_samples', 0))
         ckpt_args.start_idx = getattr(args, 'start_idx', getattr(ckpt_args, 'start_idx', 0))
         ckpt_args.label_file = getattr(args, 'label_file', getattr(ckpt_args, 'label_file', ''))
@@ -256,9 +256,12 @@ def visualize_dataset(args):
                 
                 # 模型推理
                 with torch.no_grad():
-                    # HiVG模型返回tuple: (pred_box, logits_per_text, logits_per_image, visu_token_similarity, seg_mask)
+                    # MMVG模型返回tuple: (pred_box, logits_per_text, logits_per_image, visu_token_similarity, seg_mask)
                     outputs = model(img_nt, texts)
                     pred_boxes = outputs[0]  # pred_box是第一个元素
+                    print("debug==========",pred_boxes )
+                    print("mean of img_nt", img_nt.tensors.mean())
+                    print("text", texts)
                 bbox = pred_boxes[0].cpu()
                 
                 predictions.append({
@@ -270,7 +273,7 @@ def visualize_dataset(args):
             # 保存合并的预测可视化（单图，多框，编号+颜色区分）
             save_pred_visualization(
                 args, pil_img_original, pil_img_ir, predictions,
-                img_filename, args.output_dir, "hivg"
+                img_filename, args.output_dir, "mmvg"
             )
             
             # 记录统计信息
@@ -288,7 +291,7 @@ def visualize_dataset(args):
             continue
     
     # 生成统计报告
-    generate_prediction_statistics(args.output_dir, prediction_stats, args.dataset, args.modality, "hivg")
+    generate_prediction_statistics(args.output_dir, prediction_stats, args.dataset, args.modality, "mmvg")
     
     print(f"\nVisualization complete!")
     print(f"Total images processed: {processed_images}")
@@ -300,7 +303,7 @@ def visualize_dataset(args):
 
 
 def main():
-    parser = argparse.ArgumentParser('HiVG Visualization', parents=[get_args_parser()])
+    parser = argparse.ArgumentParser('MMVG Visualization', parents=[get_args_parser()])
     args = parser.parse_args()
     
     visualize_dataset(args)
