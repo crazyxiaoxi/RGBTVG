@@ -87,7 +87,13 @@ def make_transforms(args, image_set, is_onestage=False):
             T.NormalizeAndPad(mean=mean, std=std ,size=imsize, aug_translate=args.aug_translate)
         ])
 
-    if image_set in ['val', 'test', 'testA', 'testB', 'testC',"flir_val", "flir_test", "flir_testA", "flir_testB", "flir_testC", "m3fd_val", "m3fd_test", "m3fd_testA", "m3fd_testB", "m3fd_testC", "mfad_val", "mfad_test", "mfad_testA", "mfad_testB", "mfad_testC"]:
+    eval_splits = ['val', 'test', 'testA', 'testB', 'testC',
+                   "flir_val", "flir_test", "flir_testA", "flir_testB", "flir_testC",
+                   "m3fd_val", "m3fd_test", "m3fd_testA", "m3fd_testB", "m3fd_testC",
+                   "mfad_val", "mfad_test", "mfad_testA", "mfad_testB", "mfad_testC"]
+
+    # 支持条件划分的 test_ 前缀（如 test_FY/test_BG 等），统一走测试变换
+    if image_set in eval_splits or image_set.startswith('test_'):
         return T.Compose([
             T.RandomResize([imsize]),
             T.ToTensor(),

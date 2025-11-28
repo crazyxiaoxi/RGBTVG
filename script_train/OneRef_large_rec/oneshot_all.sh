@@ -2,8 +2,8 @@
 
 IMGSIZE=${1:-224}
 BATCHSIZE=${2:-32}
-MODALITY=${3:-rgbt}
-CUDADEVICES=${4:-0}
+MODALITY=${3:-rgb}
+CUDADEVICES=${4:-0,1}
 EPOCHS=${5:-110}
 
 export IMGSIZE

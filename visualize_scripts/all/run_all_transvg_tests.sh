@@ -16,7 +16,7 @@ DATASETS=("rgbtvg_flir" "rgbtvg_m3fd" "rgbtvg_mfad")
 MODALITIES=("rgb" "ir" "rgbt")
 
 # 模型路径基础目录
-MODEL_BASE_PATH="/home/xijiawen/code/rgbtvg/dataset_and_pretrain_model/result/transvg"
+MODEL_BASE_PATH="../dataset_and_pretrain_model/result/transvg"
 
 # 计数器
 TOTAL_TESTS=9

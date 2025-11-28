@@ -10,3 +10,4 @@ train.sh
 train1.sh
 oneshot_log
 visual_result
+eval_official

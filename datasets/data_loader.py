@@ -269,25 +269,54 @@ class TransVGDataset(data.Dataset):
                     https://drive.google.com/open?id=1cZI562MABLtAzM6YU4WmKPFFguuVr0lZ')
                 exit(0)
 
-        dataset_path = osp.join(self.split_root, self.dataset)
+        dataset_root = osp.join(self.split_root, self.dataset)
         valid_splits = self.SUPPORTED_DATASETS[self.dataset]['splits']
 
         if self.lstm:
             self.corpus = Corpus()
-            corpus_path = osp.join(dataset_path, 'corpus.pth')
+            corpus_path = osp.join(dataset_root, 'corpus.pth')
             self.corpus = torch.load(corpus_path)
 
-        if split not in valid_splits:
-            raise ValueError(
-                'Dataset {0} does not have split {1}'.format(
-                    self.dataset, split))
+        # 兼容 rgbtvg 条件划分的额外 test_* split，例如 test_FY/test_UB 等
+        if str(self.dataset).startswith('rgbtvg_') and split not in valid_splits:
+            if not split.startswith('test_'):
+                raise ValueError(
+                    'Dataset {0} does not have split {1}'.format(
+                        self.dataset, split))
+        else:
+            if split not in valid_splits:
+                raise ValueError(
+                    'Dataset {0} does not have split {1}'.format(
+                        self.dataset, split))
 
         splits = [split]
         if self.dataset != 'referit':
             splits = ['train', 'val'] if split == 'trainval' else [split]
-        for split in splits:
-            imgset_file = '{0}_{1}.pth'.format(self.dataset, split)
-            imgset_path = osp.join(dataset_path, imgset_file)
+
+        for curr_split in splits:
+            split_dataset_path = dataset_root
+            split_name = curr_split
+
+            # rgbtvg 条件测试：根据 test_ 后缀自动路由到 weather/scene/illumination/occlusion/obj_size 子目录
+            if str(self.dataset).startswith('rgbtvg_') and curr_split.startswith('test_') and '_' in curr_split:
+                cond_tag = curr_split.split('_', 1)[1]
+                cond_tag_upper = str(cond_tag).upper()
+
+                if cond_tag_upper in {"FY", "RY", "SY", "CY"}:
+                    group_name = 'weather'
+                elif cond_tag_upper in {"VWL", "WL", "NL", "SL"}:
+                    group_name = 'illumination'
+                elif cond_tag_upper in {"NS", "SS"}:
+                    group_name = 'obj_size'
+                elif cond_tag_upper in {"PO", "HO"}:
+                    group_name = 'occlusion'
+                else:
+                    group_name = 'scene'
+
+                split_dataset_path = osp.join(dataset_root, group_name)
+
+            imgset_file = '{0}_{1}.pth'.format(self.dataset, split_name)
+            imgset_path = osp.join(split_dataset_path, imgset_file)
             self.images += torch.load(imgset_path)
         # name = [item[0]  for item in self.images ]
         # if self.prompt_template:
@@ -306,7 +335,14 @@ class TransVGDataset(data.Dataset):
             bbox_xywh = bbox.copy()
         elif str(self.dataset)[:6] == 'rgbtvg':  # rgbtvg
             # img_file, img_size, bbox, phrase, lighting, scale_cls, occlusion, scene, weather, crowded= self.images[idx]
-            img_file, img_size, bbox, phrase, lighting, scale_cls = self.images[idx]
+            item = self.images[idx]
+            img_file, img_size, bbox, phrase = item[0], item[1], item[2], item[3]
+            lighting = item[4] if len(item) > 4 else None
+            scale_cls = item[5] if len(item) > 5 else None
+            crowded = item[6] if len(item) > 6 else None
+            scene = item[7] if len(item) > 7 else None
+            weather = item[8] if len(item) > 8 else None
+            occlusion = item[9] if len(item) > 9 else None
             if isinstance(img_size, dict):
                 image_size = [img_size["height"], img_size["width"]]
             obj_mask = None
@@ -603,27 +639,58 @@ class MDETRCLIP(data.Dataset):
                 https://drive.google.com/open?id=1cZI562MABLtAzM6YU4WmKPFFguuVr0lZ')
             exit(0)
 
-        dataset_path = osp.join(self.split_root, self.dataset)
+        dataset_root = osp.join(self.split_root, self.dataset)
         valid_splits = self.SUPPORTED_DATASETS[self.dataset]['splits']
 
-        if split not in valid_splits:
-            raise ValueError(f'Dataset {self.dataset} does not have split {split}')
+        # 对 rgbtvg_* 支持条件划分 test_*（如 test_FY/test_BG 等），其余数据集仍按原始 splits 检查
+        if str(self.dataset).startswith('rgbtvg_') and split not in valid_splits:
+            if not split.startswith('test_'):
+                raise ValueError(f'Dataset {self.dataset} does not have split {split}')
+        else:
+            if split not in valid_splits:
+                raise ValueError(f'Dataset {self.dataset} does not have split {split}')
 
         splits = [split]
         if self.dataset != 'referit':
             splits = ['train', 'val'] if split == 'trainval' else [split]
-        for split in splits:
-            imgset_file = f'{self.dataset}_{split}.pth'
-            imgset_path = osp.join(dataset_path, imgset_file)
+
+        for curr_split in splits:
+            split_dataset_path = dataset_root
+            split_name = curr_split
+
+            # rgbtvg 条件测试：根据 test_ 后缀自动路由到 weather/scene/illumination/occlusion/obj_size 子目录
+            if str(self.dataset).startswith('rgbtvg_') and curr_split.startswith('test_') and '_' in curr_split:
+                cond_tag = curr_split.split('_', 1)[1]
+                cond_tag_upper = str(cond_tag).upper()
+
+                if cond_tag_upper in {"FY", "RY", "SY", "CY"}:
+                    group_name = 'weather'
+                elif cond_tag_upper in {"VWL", "WL", "NL", "SL"}:
+                    group_name = 'illumination'
+                elif cond_tag_upper in {"NS", "SS"}:
+                    group_name = 'obj_size'
+                elif cond_tag_upper in {"PO", "HO"}:
+                    group_name = 'occlusion'
+                else:
+                    group_name = 'scene'
+
+                split_dataset_path = osp.join(dataset_root, group_name)
+
+            imgset_file = f'{self.dataset}_{split_name}.pth'
+            imgset_path = osp.join(split_dataset_path, imgset_file)
             self.images += torch.load(imgset_path)
 
     def exists_dataset(self):
         return osp.exists(osp.join(self.split_root, self.dataset))
 
     def pull_item(self, idx):
-        # RGBT 数据格式兼容
+        # RGBT 数据格式兼容：对 rgbtvg_* 使用与 TransVGDataset 相同的灵活字段解析
         if str(self.dataset).startswith('rgbtvg'):
-            img_file, img_size, bbox, phrase, lighting, scale_cls = self.images[idx]
+            item = self.images[idx]
+            img_file, img_size, bbox, phrase = item[0], item[1], item[2], item[3]
+            lighting = item[4] if len(item) > 4 else None
+            scale_cls = item[5] if len(item) > 5 else None
+            # 可能还包含 crowded/scene/weather/occlusion 等字段，这里不参与 MDETRCLIP 的输入，仅为兼容
         elif self.dataset == 'flickr':
             img_file, bbox, phrase = self.images[idx]
         else:
