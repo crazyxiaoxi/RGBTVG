@@ -22,7 +22,7 @@ mkdir -p $OUTPUT_DIR
 
 # ==================== TRAIN ====================
 "${DIST_CMD[@]}" \
-    --master_port 28400 \
+    --master_port 25400 \
     mmca_train.py \
     --batch_size $BATCHSIZE \
     --lr_bert 0.00001 \
@@ -47,7 +47,7 @@ mkdir -p $OUTPUT_DIR
 evaluate() {
     local eval_set=$1
     "${DIST_CMD[@]}" \
-        --master_port 28401 \
+        --master_port 25401 \
         mmca_eval.py \
         --batch_size $BATCHSIZE \
         --imsize $IMGSIZE \

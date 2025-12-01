@@ -1,11 +1,11 @@
 #!/bin/bash
-# ===================== 配置参数 =====================
+# ===================== Configuration parameters =====================
 DATA_SET=${DATASET:-rgbtvg_flir}
 IMGSIZE=${IMGSIZE:-224}
 BATCHSIZE=${BATCHSIZE:-1}
 MODALITY=${MODALITY:-rgb}
 CUDADEVICES=${CUDADEVICES:-3}
-TOTAL_EPOCHS=${EPOCHS:-12}   # 总轮数
+TOTAL_EPOCHS=${EPOCHS:-12}   # Total number of epochs
 PRETRAIN_MODEL=${PRETRAIN_MODEL:-""}
 
 DATA_ROOT="../dataset_and_pretrain_model/datasets/VG/image_data"
@@ -17,14 +17,14 @@ mkdir -p $OUTPUT_DIR
 NPROC_PER_NODE=$(echo "$CUDADEVICES" | tr ',' '\n' | wc -l | awk '{print $1}')
 DIST_CMD=(env CUDA_VISIBLE_DEVICES=$CUDADEVICES TORCH_USE_CUDA_DSA=1 python -m torch.distributed.launch --nproc_per_node=$NPROC_PER_NODE --use_env)
 
-# ===================== 训练轮次配置 =====================
+# ===================== Training schedule configuration =====================
 EPOCH_FROZEN=$(($TOTAL_EPOCHS / 6))
 EPOCH_MASK=$(($TOTAL_EPOCHS / 3))
 
-# 初始化 checkpoint 路径
+# Initialize checkpoint path
 CHECKPOINT_PATH=$PRETRAIN_MODEL
 
-# ===================== eval 函数 =====================
+# ===================== Evaluation function =====================
 evaluate() {
     local eval_set=$1
     local model_path=$2
@@ -49,11 +49,11 @@ evaluate() {
         --output_dir $OUTPUT_DIR
 }
 
-# ===================== 训练轮次 =====================
+# ===================== Training rounds =====================
 for ROUND in {1..2}; do
     echo -e "\n\n========== Training Round $ROUND =========="
 
-    # ---- 冻结 backbone 阶段 ----
+    # ---- Frozen backbone stage ----
     "${DIST_CMD[@]}" \
         --master_port $((23000 + ROUND)) \
         oneref_train.py \
@@ -80,10 +80,10 @@ for ROUND in {1..2}; do
         --split_root $SPLIT_ROOT \
         --output_dir $OUTPUT_DIR
 
-    # 更新 checkpoint 为最新输出
+    # Update checkpoint to latest output
     CHECKPOINT_PATH="$OUTPUT_DIR/best_checkpoint.pth"
 
-    # ---- 使用 box mask constraints 阶段 ----
+    # ---- Box mask constraints stage ----
     "${DIST_CMD[@]}" \
         --master_port $((24000 + ROUND)) \
         oneref_train.py \
@@ -110,10 +110,10 @@ for ROUND in {1..2}; do
         --split_root $SPLIT_ROOT \
         --output_dir $OUTPUT_DIR
 
-    # 更新 checkpoint 为最新输出
+    # Update checkpoint to latest output
     CHECKPOINT_PATH="$OUTPUT_DIR/best_checkpoint.pth"
 
-    # ---- eval ----
+    # ---- Evaluation ----
 
 done
 

@@ -1,11 +1,11 @@
 #!/bin/bash
-# ===================== 配置参数 =====================
+# ===================== Configuration parameters =====================
 DATA_SET=${DATASET:-rgbtvg_flir}
 IMGSIZE=${IMGSIZE:-224}
 BATCHSIZE=${BATCHSIZE:-1}
 MODALITY=${MODALITY:-rgb}
 CUDADEVICES=${CUDADEVICES:-3}
-TOTAL_EPOCHS=${EPOCHS:-12}   # 总轮数
+TOTAL_EPOCHS=${EPOCHS:-12}   
 PRETRAIN_MODEL=${PRETRAIN_MODEL:-""}
 
 DATA_ROOT="../dataset_and_pretrain_model/datasets/VG/image_data"
@@ -17,12 +17,11 @@ mkdir -p $OUTPUT_DIR
 NPROC_PER_NODE=$(echo "$CUDADEVICES" | tr ',' '\n' | wc -l | awk '{print $1}')
 DIST_CMD=(env CUDA_VISIBLE_DEVICES=$CUDADEVICES TORCH_USE_CUDA_DSA=1 python -m torch.distributed.launch --nproc_per_node=$NPROC_PER_NODE --use_env)
 
-# ===================== 训练轮次配置 =====================
+# ===================== Training rounds configuration =====================
 
-# 初始化 checkpoint 路径
 CHECKPOINT_PATH=$PRETRAIN_MODEL
 
-# ===================== eval 函数 =====================
+# ===================== Evaluation function =====================
 evaluate() {
     local eval_set=$1
     local model_path=$2

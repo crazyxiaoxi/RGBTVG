@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# 数据集配置
+# Dataset configuration
 DATA_SET=${DATASET:-rgbtvg_flir}
 
 echo -e "\n\n\n\n\n\n\n==================== clipvg single dataset: $DATA_SET ==========================="
@@ -11,20 +11,20 @@ CUDADEVICES=${CUDADEVICES:-0}
 EPOCHS=${EPOCHS:-110}
 
 NPROC_PER_NODE=$(echo "$CUDADEVICES" | tr ',' '\n' | wc -l | awk '{print $1}')
-# 分布式训练配置
+# Distributed training configuration
 echo "use imgsize $IMGSIZE batchsize $BATCHSIZE modality $MODALITY cudadevices $CUDADEVICES nproc_per_node $NPROC_PER_NODE"
 DIST_CMD=(env CUDA_VISIBLE_DEVICES=$CUDADEVICES python -m torch.distributed.launch --nproc_per_node=$NPROC_PER_NODE --use_env)
-# 路径配置
+# Path configuration
 DATA_ROOT="../dataset_and_pretrain_model/datasets/VG/image_data"
 SPLIT_ROOT="../dataset_and_pretrain_model/datasets/VG/ref_data_shuffled"
 EVAL_MODEL_PATH="../dataset_and_pretrain_model/pretrain_model/pretrained_weights/clipvg/best_checkpoint.pth"
 
 OUTPUT_DIR="./oneshot_logs/CLIP_VG/${MODALITY}"
-# 训练参数
+# Training arguments
 TRAIN_ARGS=(--num_workers 4 --modality $MODALITY --batch_size $BATCHSIZE --imsize $IMGSIZE --epochs $EPOCHS --lr_bert 0.00001 --aug_crop --aug_scale --aug_translate --vl_hidden_dim 512 --max_query_len 77)
-# 评估参数
+# Evaluation arguments
 EVAL_ARGS=( --num_workers 4 --modality $MODALITY --batch_size $BATCHSIZE --imsize $IMGSIZE --max_query_len 77)
-# 评估函数
+# Evaluation function
 evaluate() {
     local eval_set=$1
     "${DIST_CMD[@]}" \
@@ -39,7 +39,7 @@ evaluate() {
         --output_dir "$OUTPUT_DIR"
 }
 
-# 评估
+# Evaluation
 evaluate "val"
 evaluate "test"
 evaluate "testA"

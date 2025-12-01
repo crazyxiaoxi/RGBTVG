@@ -1,4 +1,4 @@
-# flir train from clip weight
+# FLIR oneshot evaluation from CLIP weight
 DATASET=${DATASET:-flir}
 IMGSIZE=${IMGSIZE:-224}
 BATCHSIZE=${BATCHSIZE:-32}
@@ -6,7 +6,7 @@ MODALITY=${MODALITY:-rgbt}
 CUDADEVICES=${CUDADEVICES:-0}
 NPROC_PER_NODE=$(echo "$CUDADEVICES" | tr ',' '\n' | wc -l | awk '{print $1}')
 RETRAIN=${RETRAIN:-""}
-# 分布式训练配置
+# Distributed evaluation configuration
 DIST_CMD=(env CUDA_VISIBLE_DEVICES=$CUDADEVICES python -m torch.distributed.launch --nproc_per_node=$NPROC_PER_NODE --use_env)
 DATA_ROOT="../dataset_and_pretrain_model/datasets/VG/image_data"  
 SPLIT_ROOT="../dataset_and_pretrain_model/datasets/VG/ref_data_shuffled"  

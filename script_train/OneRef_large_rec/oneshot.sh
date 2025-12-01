@@ -1,5 +1,5 @@
 #!/bin/bash
-# ===================== 配置参数 =====================
+# ===================== Configuration parameters =====================
 DATA_SET=${DATASET:-rgbtvg_flir}
 IMGSIZE=${IMGSIZE:-224}
 BATCHSIZE=${BATCHSIZE:-1}
@@ -18,10 +18,10 @@ NPROC_PER_NODE=$(echo "$CUDADEVICES" | tr ',' '\n' | wc -l | awk '{print $1}')
 DIST_CMD=(env CUDA_VISIBLE_DEVICES=$CUDADEVICES TORCH_USE_CUDA_DSA=1 python -m torch.distributed.launch --nproc_per_node=$NPROC_PER_NODE --use_env)
 
 
-# 初始化 checkpoint 路径
+# Initialize checkpoint path
 
 
-# ===================== eval 函数 =====================
+# ===================== Evaluation function =====================
 evaluate() {
     local eval_set=$1
     local model_path=$2

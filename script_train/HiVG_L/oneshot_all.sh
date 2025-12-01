@@ -1,44 +1,37 @@
-
-# ================= 全局参数 =================
+# ================= Global hyper-parameters =================
 IMGSIZE=${1:-224}
 BATCHSIZE=${2:-36}
-MODALITY=${3:-rgb}
-CUDADEVICES=${4:-0}
+CUDADEVICES=${3:-0}
 
 export IMGSIZE
 export BATCHSIZE
-export MODALITY
 export CUDADEVICES
 
-if [ "$MODALITY" == "rgbt" ]; then
-    export RETRAIN="../dataset_and_pretrain_model/pretrain_model/pretrained_weights/HiVG/mixup_pretraining_large/best_checkpoint_rgbt.pth"
-elif [ "$MODALITY" == "rgb" ]; then
-    export RETRAIN="../dataset_and_pretrain_model/pretrain_model/pretrained_weights/HiVG/mixup_pretraining_large/best_checkpoint.pth"
-elif [ "$MODALITY" == "ir" ]; then
-    export RETRAIN="../dataset_and_pretrain_model/pretrain_model/pretrained_weights/HiVG/mixup_pretraining_large/best_checkpoint.pth"
-fi
+DATASETS=("rgbtvg_flir" "rgbtvg_m3fd" "rgbtvg_mfad")
+MODALITIES=("rgb" "ir")
 
+for MODALITY in "${MODALITIES[@]}"; do
+  export MODALITY
 
-echo "Start HIVG training with IMGSIZE=$IMGSIZE BATCHSIZE=$BATCHSIZE CUDA=$CUDADEVICES MODALITY=$MODALITY RETRAIN=$RETRAIN"
+  # Select RETRAIN checkpoint according to modality
+  if [ "$MODALITY" == "rgbt" ]; then
+      export RETRAIN="../dataset_and_pretrain_model/pretrain_model/pretrained_weights/HiVG/mixup_pretraining_large/best_checkpoint_rgbt.pth"
+  elif [ "$MODALITY" == "rgb" ]; then
+      export RETRAIN="../dataset_and_pretrain_model/pretrain_model/pretrained_weights/HiVG/mixup_pretraining_large/best_checkpoint.pth"
+  elif [ "$MODALITY" == "ir" ]; then
+      export RETRAIN="../dataset_and_pretrain_model/pretrain_model/pretrained_weights/HiVG/mixup_pretraining_large/best_checkpoint.pth"
+  fi
 
-# ================= 日志目录 =================
-mkdir -p oneshot_logs/hivg_l/$MODALITY
+  echo "Start HiVG-L oneshot training with IMGSIZE=$IMGSIZE BATCHSIZE=$BATCHSIZE CUDA=$CUDADEVICES MODALITY=$MODALITY RETRAIN=$RETRAIN"
 
-# ================= 串行训练四个数据集 =================
+  # Log directory
+  mkdir -p oneshot_logs/hivg_l/$MODALITY
 
-
-echo "===== Start FLIR training ====="
-DATASET="rgbtvg_flir"
-export DATASET
-stdbuf -oL -eL bash ./script_train/HiVG_L/oneshot.sh  2>&1 | tee oneshot_logs/hivg_l/$MODALITY/flir.log
-
-echo "===== Start M3FD training ====="
-DATASET="rgbtvg_m3fd"
-export DATASET
-stdbuf -oL -eL bash ./script_train/HiVG_L/oneshot.sh 2>&1 | tee oneshot_logs/hivg_l/$MODALITY/m3fd.log
-
-echo "===== Start MFAD training ====="
-DATASET="rgbtvg_mfad"
-export DATASET
-stdbuf -oL -eL bash ./script_train/HiVG_L/oneshot.sh 2>&1 | tee oneshot_logs/hivg_l/$MODALITY/mfad.log
+  for DATASET in "${DATASETS[@]}"; do
+    export DATASET
+    ds_name=${DATASET#rgbtvg_}
+    echo "===== Start ${ds_name^^} oneshot training ====="
+    stdbuf -oL -eL bash ./script_train/HiVG_L/oneshot.sh  2>&1 | tee oneshot_logs/hivg_l/$MODALITY/${ds_name}.log
+  done
+done
 

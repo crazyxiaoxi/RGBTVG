@@ -2,33 +2,29 @@
 
 IMGSIZE=${1:-224}
 BATCHSIZE=${2:-8}
-MODALITY=${3:-rgb}
-CUDADEVICES=${4:-0,1}
-EPOCHS=${5:-110}
+CUDADEVICES=${3:-0,1}
+EPOCHS=${4:-110}
 
 
-# 导出环境变量给第三层脚本
+# Export common hyper-parameters for the underlying oneshot.sh script
 export IMGSIZE
 export BATCHSIZE
-export MODALITY
 export CUDADEVICES
 export EPOCHS
 
-echo "Start CLIPVG training with IMGSIZE=$IMGSIZE BATCHSIZE=$BATCHSIZE CUDA=$CUDADEVICES MODALITY=$MODALITY"
+DATASETS=("rgbtvg_flir" "rgbtvg_m3fd" "rgbtvg_mfad")
+MODALITIES=("rgb" "ir")
 
-mkdir -p oneshot_logs/clipvg/$MODALITY
+for MODALITY in "${MODALITIES[@]}"; do
+  export MODALITY
+  echo "Start CLIPVG oneshot training with IMGSIZE=$IMGSIZE BATCHSIZE=$BATCHSIZE CUDA=$CUDADEVICES MODALITY=$MODALITY"
 
-DATASET="rgbtvg_flir"
-export DATASET
-echo "===== Start FLIR training ====="
-stdbuf -oL -eL bash ./script_train/CLIP_VG/oneshot.sh 2>&1 | tee oneshot_logs/clipvg/$MODALITY/flir.log
+  mkdir -p oneshot_logs/clipvg/$MODALITY
 
-DATASET="rgbtvg_m3fd"
-export DATASET
-echo "===== Start M3FD training ====="
-stdbuf -oL -eL bash ./script_train/CLIP_VG/oneshot.sh 2>&1 | tee oneshot_logs/clipvg/$MODALITY/m3fd.log
-
-DATASET="rgbtvg_mfad"
-export DATASET
-echo "===== Start MFAD training ====="
-stdbuf -oL -eL bash ./script_train/CLIP_VG/oneshot.sh 2>&1 | tee oneshot_logs/clipvg/$MODALITY/mfad.log
+  for DATASET in "${DATASETS[@]}"; do
+    export DATASET
+    ds_name=${DATASET#rgbtvg_}
+    echo "===== Start ${ds_name^^} oneshot training ====="
+    stdbuf -oL -eL bash ./script_train/CLIP_VG/oneshot.sh 2>&1 | tee oneshot_logs/clipvg/$MODALITY/${ds_name}.log
+  done
+done

@@ -2,36 +2,29 @@
 
 IMGSIZE=${1:-224}
 BATCHSIZE=${2:-8}
-MODALITY=${3:-rgb}
-CUDADEVICES=${4:-1,2,3}
-EPOCHS=${5:-110}
+CUDADEVICES=${3:-1,2,3}
+EPOCHS=${4:-110}
 
 
-# 导出环境变量给第三层脚本
+# Export common hyper-parameters for the underlying single.sh script
 export IMGSIZE
 export BATCHSIZE
-export MODALITY
 export CUDADEVICES
 export EPOCHS
 
-echo "Start CLIPVG training with IMGSIZE=$IMGSIZE BATCHSIZE=$BATCHSIZE CUDA=$CUDADEVICES MODALITY=$MODALITY"
+DATASETS=("rgbtvg_flir" "rgbtvg_m3fd" "rgbtvg_mfad")
+MODALITIES=("rgb" "ir" "rgbt")
 
-mkdir -p logs/clipvg/$MODALITY
+for MODALITY in "${MODALITIES[@]}"; do
+  export MODALITY
+  echo "Start CLIPVG training with IMGSIZE=$IMGSIZE BATCHSIZE=$BATCHSIZE CUDA=$CUDADEVICES MODALITY=$MODALITY"
 
-DATASET="rgbtvg_flir"
-export DATASET
-echo "===== Start FLIR training ====="
-stdbuf -oL -eL bash ./script_train/CLIP_VG/single.sh 2>&1 | tee logs/clipvg/$MODALITY/$IMGSIZE"_"$BATCHSIZE"_flir.log"
+  mkdir -p logs/clipvg/$MODALITY
 
-# DATASET="rgbtvg_m3fd"
-# export DATASET
-# echo "===== Start M3FD training ====="
-# stdbuf -oL -eL bash ./script_train/CLIP_VG/single.sh 2>&1 | tee logs/clipvg/$MODALITY/$IMGSIZE"_"$BATCHSIZE"_m3fd.log"
-
-# DATASET="rgbtvg_mfad"
-# export DATASET
-# echo "===== Start MFAD training ====="
-# stdbuf -oL -eL bash ./script_train/CLIP_VG/single.sh 2>&1 | tee logs/clipvg/$MODALITY/$IMGSIZE"_"$BATCHSIZE"_mfad.log"
-
-# echo "===== Start MIXUP training ====="
-# stdbuf -oL -eL bash ./script_train/CLIP_VG/mixup.sh 2>&1 | tee logs/clipvg/$MODALITY/$IMGSIZE"_"$BATCHSIZE"_mixup.log"
+  for DATASET in "${DATASETS[@]}"; do
+    export DATASET
+    ds_name=${DATASET#rgbtvg_}
+    echo "===== Start ${ds_name^^} training ====="
+    stdbuf -oL -eL bash ./script_train/CLIP_VG/single.sh 2>&1 | tee logs/clipvg/$MODALITY/${IMGSIZE}_${BATCHSIZE}_${ds_name}.log
+  done
+done
