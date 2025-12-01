@@ -5,7 +5,7 @@
 
 
 # ===================== Configuration Parameters =====================
-MODEL_CHECKPOINT="/home/xijiawen/code/rgbtvg/dataset_and_pretrain_model/pretrain_model/pretrained_weights/oneref/l_rec_224.pth"
+MODEL_CHECKPOINT="../dataset_and_pretrain_model/pretrain_model/pretrained_weights/oneref/l_rec_224.pth"
 MODEL="beit3_large_patch16_224"
 TASK="grounding"
 SENTENCEPIECE="../dataset_and_pretrain_model/pretrain_model/pretrained_weights/BEIT3/beit3.spm"

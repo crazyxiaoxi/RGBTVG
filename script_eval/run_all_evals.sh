@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# Run all evaluation scripts (all_eval and oneshot_eval) under xjw_codes/script_eval
+# Run all evaluation scripts (all_eval and oneshot_eval) 
 
 # All-evaluation scripts (3 datasets × 3 modalities where applicable)
 bash ./script_eval/CLIP_VG/all_eval.sh
