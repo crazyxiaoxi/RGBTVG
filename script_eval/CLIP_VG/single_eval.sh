@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# 数据集配置（rgbtvg_flir / rgbtvg_m3fd / rgbtvg_mfad）
+# Dataset configuration (rgbtvg_flir / rgbtvg_m3fd / rgbtvg_mfad)
 DATA_SET=${DATASET:-rgbtvg_flir}
 
 echo -e "\n\n\n\n\n\n\n==================== clipvg single eval dataset: $DATA_SET ==========================="
@@ -9,13 +9,13 @@ BATCHSIZE=${BATCHSIZE:-32}
 MODALITY=${MODALITY:-rgb}            # rgb / ir / rgbt
 CUDADEVICES=${CUDADEVICES:-0}
 
-# 默认评估的 split 列表：
-#   - 全局：test
-#   - illumination/*: VWL, WL, NL, SL
-#   - obj_size/*:     NS, SS
-#   - occlusion/*:    PO, HO
-#   - scene/*:        UB, SU, RR, HW, RS, ID, PL, IT, TN, BG, CP, MK, WF
-#   - weather/*:      FY, RY, SY, CY
+# Default evaluation split list:
+#   - Global:          test
+#   - illumination/*:  VWL, WL, NL, SL
+#   - obj_size/*:      NS, SS
+#   - occlusion/*:     PO, HO
+#   - scene/*:         UB, SU, RR, HW, RS, ID, PL, IT, TN, BG, CP, MK, WF
+#   - weather/*:       FY, RY, SY, CY
 EVAL_SETS=${EVAL_SETS:-"test \
 test_VWL test_WL test_NL test_SL \
 test_NS test_SS \
@@ -35,10 +35,10 @@ SPLIT_ROOT="../dataset_and_pretrain_model/datasets/VG/ref_data_shuffled"
 EVAL_MODEL_PATH=${EVAL_MODEL_PATH:-"../dataset_and_pretrain_model/pretrain_model/pretrained_weights/clipvg/best_checkpoint.pth"}
 OUTPUT_DIR=${OUTPUT_DIR:-"./eval_official/CLIP_VG_${IMGSIZE}_${MODALITY}/$DATA_SET"}
 
-# 评估参数（与 train 脚本中的 EVAL_ARGS 保持一致）
+# Evaluation arguments (kept consistent with EVAL_ARGS in the training script)
 EVAL_ARGS=( --num_workers 4 --modality $MODALITY --batch_size $BATCHSIZE --imsize $IMGSIZE --max_query_len 77 )
 
-# 评估函数
+# Evaluation function
 evaluate() {
     local eval_set=$1
     echo -e "\n>>>> Eval set: $eval_set, model: $EVAL_MODEL_PATH"
@@ -57,7 +57,7 @@ evaluate() {
         --output_dir "$OUTPUT_DIR"
 }
 
-# 只做评估，不训练
+# Evaluation only, no training
 for es in $EVAL_SETS; do
     evaluate "$es"
 done

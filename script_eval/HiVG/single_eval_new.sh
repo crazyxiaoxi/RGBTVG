@@ -1,9 +1,9 @@
 #!/bin/bash
 
-# 单数据集单模态：HiVG (ViT-B) 调试脚本
-# 逻辑：
-# 1) 使用 "官方结果" ckpt 作为 --retrain load，训练 1 epoch
-# 2) 使用原 single_eval.sh 的评测逻辑，对该 1-epoch 权重进行评测
+# Single-dataset single-modality debug script for HiVG (ViT-B)
+# Logic:
+# 1) Use the "official result" checkpoint as the --retrain load and train for 1 epoch.
+# 2) Reuse the evaluation logic from single_eval.sh to evaluate this 1-epoch checkpoint.
 
 DATA_SET=${DATASET:-rgbtvg_flir}
 IMGSIZE=${IMGSIZE:-224}
@@ -16,12 +16,12 @@ ROOT_DIR=$(cd "$SCRIPT_DIR/../.." && pwd)
 
 DATA_ROOT="../dataset_and_pretrain_model/datasets/VG/image_data"
 SPLIT_ROOT="../dataset_and_pretrain_model/datasets/VG/ref_data_shuffled"
-# 官方结果 ckpt 作为 retrain 初始模型
+# Official result checkpoint used as the initial model for retraining
 OFFICIAL_MODEL="../dataset_and_pretrain_model/pretrain_model/pretrained_weights/HiVG/mixup_pretraining_base/mixup/fixed_best_checkpoint_peft0111.pth"
 
 # "../dataset_and_pretrain_model/result/HiVG_B/HiVG_B_${MODALITY}_$(echo $DATA_SET | sed 's/rgbtvg_//')_best.pth"
 
-# debug 训练输出目录
+# Debug training output directory
 OUTPUT_DIR_DEBUG="./output_debug_retrain/HiVG_${IMGSIZE}_${MODALITY}/$DATA_SET"
 mkdir -p "$OUTPUT_DIR_DEBUG"
 
@@ -58,7 +58,7 @@ EVAL_SETS=${EVAL_SETS:-"test \
  test_UB test_SU test_RR test_HW test_RS test_ID test_PL test_IT test_TN test_BG test_CP test_MK test_WF \
  test_FY test_RY test_SY test_CY"}
 
-# 原 single_eval 的评测参数
+# Evaluation arguments reused from the original single_eval script
 EVAL_MODEL_PATH="$OUTPUT_DIR_DEBUG/best_checkpoint.pth"
 OUTPUT_DIR=${OUTPUT_DIR:-"./eval_official_debug/HiVG_${IMGSIZE}_${MODALITY}/$DATA_SET"}
 mkdir -p "$OUTPUT_DIR"
@@ -95,11 +95,11 @@ evaluate() {
     --eval_set "$eval_set"
 }
 
-# 1) 先训练一轮
+# 1) Train for one epoch
 echo -e "\n==================== [HiVG-debug] Train 1 epoch from OFFICIAL_MODEL ==========================="
 "${DIST_CMD[@]}" --master_port 28870 hivg_train.py "${TRAIN_ARGS[@]}"
 
-# 2) 再评测
+# 2) Then evaluate
 for es in $EVAL_SETS; do
   evaluate "$es"
 done

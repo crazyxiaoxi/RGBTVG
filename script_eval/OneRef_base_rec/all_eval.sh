@@ -1,8 +1,8 @@
 #!/bin/bash
 
-# 批量评估脚本：遍历 3 个数据集 × 3 个模态（OneRef_base_rec）
+# Batch evaluation script: iterate over 3 datasets × 2 modalities (OneRef_base_rec, rgb/ir)
 
-DATASETS=${DATASETS:-"rgbtvg_flir"}
+DATASETS=${DATASETS:-"rgbtvg_flir rgbtvg_m3fd rgbtvg_mfad"}
 MODALITIES=${MODALITIES:-"rgb ir"}
 EVAL_SETS=${EVAL_SETS:-"test \
  test_VWL test_WL test_NL test_SL \

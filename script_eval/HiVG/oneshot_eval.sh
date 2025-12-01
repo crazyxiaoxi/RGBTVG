@@ -1,7 +1,7 @@
 #!/bin/bash
 
-# HiVG (ViT-B) oneshot 评测脚本：3 数据集 × 3 模态 × 多个细分测试集
-# 默认使用 mixup_pretraining_base/mixup 下的 oneshot 权重：
+# HiVG (ViT-B) oneshot evaluation script: 3 datasets × 2 modalities (rgb/ir) × multiple fine-grained test splits
+# Default oneshot weights in mixup_pretraining_base/mixup:
 #   - rgb/ir:   best_checkpoint.pth
 #   - rgbt:     best_checkpoint_rgbt.pth
 
@@ -15,12 +15,13 @@ EVAL_SETS=${EVAL_SETS:-"test \
  test_FY test_RY test_SY test_CY"}
 
 IMGSIZE=${IMGSIZE:-224}
-BATCHSIZE=${BATCHSIZE:-18}         # 对齐 mixup oneshot 训练脚本中的 batch size
+BATCHSIZE=${BATCHSIZE:-18}         # Align with batch size in the mixup oneshot training script
 CUDADEVICES=${CUDADEVICES:-0,1}
 
 SCRIPT_DIR=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
 ROOT_DIR=$(cd "$SCRIPT_DIR/../.." && pwd)
-SINGLE_EVAL_SH="$SCRIPT_DIR/single_eval.sh"   # 只做评测，不走 single_eval_new 的 retrain 逻辑
+SINGLE_EVAL_SH="$SCRIPT_DIR/single_eval.sh"   # Only evaluation, does not go through the retrain logic in single_eval_new
+# Only evaluation, does not go through the retrain logic in single_eval_new
 LOG_ROOT="$ROOT_DIR/logs/eval/HiVG_oneshot"
 mkdir -p "$LOG_ROOT"
 
@@ -28,7 +29,7 @@ for ds in $DATASETS; do
   for m in $MODALITIES; do
     echo -e "\n==================== [HiVG-oneshot] DATASET: $ds, MODALITY: $m ==========================="
 
-    # 根据模态选择 oneshot 权重（可通过环境变量覆盖）
+    # Select oneshot checkpoint according to modality (can be overridden by environment variables)
     if [[ "$m" == "rgbt" ]]; then
       MODEL_PATH=${HI_B_RGBT_MODEL:-"../dataset_and_pretrain_model/pretrain_model/pretrained_weights/HiVG/mixup_pretraining_base/mixup/best_checkpoint_rgbt.pth"}
     else

@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# 单数据集单模态：HiVG (ViT-B) 评测脚本
+# Single-dataset single-modality evaluation script for HiVG (ViT-B)
 DATA_SET=${DATASET:-rgbtvg_flir}
 
 IMGSIZE=${IMGSIZE:-224}
@@ -17,7 +17,7 @@ EVAL_SETS=${EVAL_SETS:-"test \
 
 DATA_ROOT="../dataset_and_pretrain_model/datasets/VG/image_data"
 SPLIT_ROOT="../dataset_and_pretrain_model/datasets/VG/ref_data_shuffled"
-# 官方结果：../dataset_and_pretrain_model/result/HiVG_B/HiVG_B_<mod>_<ds>_best.pth
+# Official checkpoint path: ../dataset_and_pretrain_model/result/HiVG_B/HiVG_B_<mod>_<ds>_best.pth
 EVAL_MODEL_PATH=${EVAL_MODEL_PATH:-"../dataset_and_pretrain_model/result/HiVG_B/HiVG_B_${MODALITY}_$(echo $DATA_SET | sed 's/rgbtvg_//')_best.pth"}
 OUTPUT_DIR=${OUTPUT_DIR:-"./eval_official/HiVG_${IMGSIZE}_${MODALITY}/$DATA_SET"}
 

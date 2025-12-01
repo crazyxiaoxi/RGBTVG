@@ -1,7 +1,7 @@
 #!/bin/bash
 
-# OneRef_base_rec oneshot 评测脚本：3 数据集 × 3 模态 × 多个细分测试集
-# 默认使用 oneref/b_rec_224.pth 作为 oneshot 权重（与 oneshot_all.sh 保持一致）。
+# OneRef_base_rec oneshot evaluation script: 3 datasets × 2 modalities (rgb/ir) × multiple fine-grained test splits
+# Default oneshot checkpoint: oneref/b_rec_224.pth (kept consistent with oneshot_all.sh).
 
 DATASETS=${DATASETS:-"rgbtvg_m3fd rgbtvg_mfad"}
 MODALITIES=${MODALITIES:-"rgb ir"}

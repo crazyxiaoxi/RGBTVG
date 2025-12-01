@@ -1,13 +1,13 @@
 #!/bin/bash
 
-# 批量评估脚本：遍历 3 个数据集 × 3 个模态（MDETR ResNet）
-# 可通过环境变量自定义：
-#   DATASETS  ="rgbtvg_flir rgbtvg_m3fd rgbtvg_mfad"
+# Batch evaluation script: iterate over 3 datasets × 3 modalities (MDETR ResNet)
+# Can be customized via environment variables:
+#   DATASETS  ="flir m3fd mfad"
 #   MODALITIES="rgb ir rgbt"
-#   EVAL_SETS ="test 和各条件划分，如 test_VWL/test_NS/test_PO/test_BG/test_FY 等"
+#   EVAL_SETS ="test and various condition-specific splits, such as test_VWL/test_NS/test_PO/test_BG/test_FY, etc."
 
-DATASETS=${DATASETS:-"rgbtvg_flir"}
-MODALITIES=${MODALITIES:-"ir"}
+DATASETS=${DATASETS:-"flir m3fd mfad"}
+MODALITIES=${MODALITIES:-"rgb ir rgbt"}
 EVAL_SETS=${EVAL_SETS:-"test \
  test_VWL test_WL test_NL test_SL \
  test_NS test_SS \

@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# 单数据集单模态：MDETR ResNet 评测脚本
+# Single-dataset single-modality evaluation script for MDETR ResNet
 DATA_SET=${DATASET:-rgbtvg_flir}
 
 echo -e "\n\n\n\n\n\n\n==================== MDETR_resnet single eval dataset: $DATA_SET ==========================="
@@ -9,13 +9,13 @@ BATCHSIZE=${BATCHSIZE:-16}
 MODALITY=${MODALITY:-rgbt}
 CUDADEVICES=${CUDADEVICES:-0}
 
-# 默认评估的 split 列表：与 CLIP_VG 保持一致
-#   - 全局：test
-#   - illumination/*: VWL, WL, NL, SL
-#   - obj_size/*:     NS, SS
-#   - occlusion/*:    PO, HO
-#   - scene/*:        UB, SU, RR, HW, RS, ID, PL, IT, TN, BG, CP, MK, WF
-#   - weather/*:      FY, RY, SY, CY
+# Default evaluation split list (kept consistent with CLIP_VG):
+#   - Global:          test
+#   - illumination/*:  VWL, WL, NL, SL
+#   - obj_size/*:      NS, SS
+#   - occlusion/*:     PO, HO
+#   - scene/*:         UB, SU, RR, HW, RS, ID, PL, IT, TN, BG, CP, MK, WF
+#   - weather/*:       FY, RY, SY, CY
 EVAL_SETS=${EVAL_SETS:-"test \
  test_VWL test_WL test_NL test_SL \
  test_NS test_SS \
@@ -29,7 +29,7 @@ DIST_CMD=(env CUDA_VISIBLE_DEVICES=$CUDADEVICES python -m torch.distributed.laun
 DATA_ROOT="../dataset_and_pretrain_model/datasets/VG/image_data"
 SPLIT_ROOT="../dataset_and_pretrain_model/datasets/VG/ref_data_shuffled"
 EVAL_MODEL_PATH=${EVAL_MODEL_PATH:-"../dataset_and_pretrain_model/result/MDETR_resnet/MDETR_resnet_${IMGSIZE}_${MODALITY}_$(echo $DATA_SET | sed 's/rgbtvg_//')_best.pth"}
-# eval_official 用于 Python 脚本内部日志与结果
+# eval_official is used for logs and results inside the Python script
 OUTPUT_DIR=${OUTPUT_DIR:-"./eval_official/MDETR_resnet_${IMGSIZE}_${MODALITY}/$DATA_SET"}
 
 EVAL_ARGS=( \

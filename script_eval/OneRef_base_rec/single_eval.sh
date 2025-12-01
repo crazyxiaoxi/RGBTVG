@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# 单数据集单模态：OneRef_base_rec 评测脚本
+# Single-dataset single-modality evaluation script for OneRef_base_rec
 DATA_SET=${DATASET:-rgbtvg_flir}
 
 IMGSIZE=${IMGSIZE:-224}

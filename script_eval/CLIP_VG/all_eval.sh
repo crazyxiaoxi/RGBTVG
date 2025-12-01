@@ -1,10 +1,10 @@
 #!/bin/bash
 
-# 批量评估脚本：遍历 3 个数据集 × 3 个模态
-# 可通过环境变量自定义：
+# Batch evaluation script: iterate over 3 datasets × 3 modalities
+# Can be customized via environment variables:
 #   DATASETS  ="rgbtvg_flir rgbtvg_m3fd rgbtvg_mfad"
 #   MODALITIES="rgb ir rgbt"
-#   EVAL_SETS ="test 和各条件划分，如 test_VWL/test_NS/test_PO/test_BG/test_FY 等"
+#   EVAL_SETS ="test and condition-specific splits, e.g. test_VWL/test_NS/test_PO/test_BG/test_FY etc."
 
 DATASETS=${DATASETS:-"rgbtvg_flir rgbtvg_m3fd rgbtvg_mfad"}
 MODALITIES=${MODALITIES:-"rgb ir rgbt"}

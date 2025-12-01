@@ -1,7 +1,7 @@
 #!/bin/bash
 
-# HiVG_L (ViT-L) oneshot 评测脚本：3 数据集 × 3 模态 × 多个细分测试集
-# 默认使用 mixup_pretraining_large/mixup 下的 oneshot 权重：
+# HiVG_L (ViT-L) oneshot evaluation script: 3 datasets × 2 modalities (rgb/ir) × multiple fine-grained test splits
+# Default oneshot weights in mixup_pretraining_large/mixup:
 #   - rgb/ir:   best_checkpoint.pth
 #   - rgbt:     best_checkpoint_rgbt.pth
 

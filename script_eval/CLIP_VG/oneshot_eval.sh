@@ -1,8 +1,8 @@
 #!/bin/bash
 
-# CLIP_VG oneshot 评测脚本：3 数据集 × 3 模态 × 多个细分测试集
-# 默认使用 ../dataset_and_pretrain_model/pretrain_model/pretrained_weights/clipvg/best_checkpoint.pth
-# （路径与 script_train/CLIP_VG/oneshot.sh 中的 EVAL_MODEL_PATH 保持一致）
+# CLIP_VG oneshot evaluation script: 3 datasets × 2 modalities (rgb/ir) × multiple fine-grained test splits
+# Default checkpoint: ../dataset_and_pretrain_model/pretrain_model/pretrained_weights/clipvg/best_checkpoint.pth
+# (Path is consistent with EVAL_MODEL_PATH in script_train/CLIP_VG/oneshot.sh)
 
 DATASETS=${DATASETS:-"rgbtvg_flir rgbtvg_m3fd rgbtvg_mfad"}
 MODALITIES=${MODALITIES:-"rgb ir"}
@@ -14,7 +14,7 @@ EVAL_SETS=${EVAL_SETS:-"test \
  test_FY test_RY test_SY test_CY"}
 
 IMGSIZE=${IMGSIZE:-224}
-BATCHSIZE=${BATCHSIZE:-36}      # 对齐 CLIP_VG/single_eval.sh 默认 batch size
+BATCHSIZE=${BATCHSIZE:-36}      # Align with default batch size in CLIP_VG/single_eval.sh
 CUDADEVICES=${CUDADEVICES:-0,1}
 
 SCRIPT_DIR=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
@@ -23,7 +23,7 @@ SINGLE_EVAL_SH="$SCRIPT_DIR/single_eval.sh"
 LOG_ROOT="$ROOT_DIR/logs/eval/CLIP_VG_oneshot"
 mkdir -p "$LOG_ROOT"
 
-# 默认 oneshot ckpt，可通过 CLIPVG_ONESHOT_PATH 覆盖
+# Default oneshot checkpoint, can be overridden by CLIPVG_ONESHOT_PATH
 DEFAULT_MODEL_PATH="../dataset_and_pretrain_model/pretrain_model/pretrained_weights/clipvg/best_checkpoint.pth"
 MODEL_PATH=${CLIPVG_ONESHOT_PATH:-$DEFAULT_MODEL_PATH}
 

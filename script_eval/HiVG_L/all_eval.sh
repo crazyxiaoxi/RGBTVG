@@ -1,8 +1,8 @@
 #!/bin/bash
 
-# 批量评估脚本：遍历 3 个数据集 × 3 个模态（HiVG_L ViT-L）
+# Batch evaluation script: iterate over 3 datasets × 3 modalities (HiVG_L ViT-L)
 
-DATASETS=${DATASETS:-"rgbtvg_m3fd rgbtvg_mfad"}
+DATASETS=${DATASETS:-"rgbtvg_flir rgbtvg_m3fd rgbtvg_mfad"}
 MODALITIES=${MODALITIES:-"rgb ir rgbt"}
 EVAL_SETS=${EVAL_SETS:-"test \
  test_VWL test_WL test_NL test_SL \

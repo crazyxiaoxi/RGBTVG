@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# 单数据集单模态：MMCA_VG 评测脚本
+# Single-dataset single-modality evaluation script for MMCA_VG
 DATA_SET=${DATASET:-rgbtvg_flir}
 
 echo -e "\n\n\n\n\n\n\n==================== MMCA_VG single eval dataset: $DATA_SET ==========================="

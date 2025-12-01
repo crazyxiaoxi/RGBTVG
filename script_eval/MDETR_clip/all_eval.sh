@@ -1,10 +1,10 @@
 #!/bin/bash
 
-# 批量评估脚本：遍历 3 个数据集 × 3 个模态（MDETR CLIP）
-# 可通过环境变量自定义 DATASETS / MODALITIES / EVAL_SETS
+# Batch evaluation script: iterate over 3 datasets × 3 modalities (MDETR CLIP)
+# DATASETS / MODALITIES / EVAL_SETS can be customized via environment variables
 
-DATASETS=${DATASETS:-"rgbtvg_flir"}
-MODALITIES=${MODALITIES:-"ir"}
+DATASETS=${DATASETS:-"rgbtvg_flir rgbtvg_m3fd rgbtvg_mfad"}
+MODALITIES=${MODALITIES:-"rgb ir rgbt"}
 EVAL_SETS=${EVAL_SETS:-"test \
  test_VWL test_WL test_NL test_SL \
  test_NS test_SS \

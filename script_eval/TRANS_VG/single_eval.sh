@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# 单数据集单模态：TransVG 评测脚本
+# Single-dataset single-modality evaluation script for TransVG
 DATA_SET=${DATASET:-rgbtvg_flir}
 
 echo -e "\n\n\n\n\n\n\n==================== TransVG single eval dataset: $DATA_SET ==========================="
