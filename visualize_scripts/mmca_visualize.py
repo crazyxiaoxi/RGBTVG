@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
-MMCA模型可视化脚本
-用于生成MMCA模型在数据集上的预测结果可视化
+MMCA Visualization Script
+Generate visualization of MMCA model prediction results on datasets
 """
 import argparse
 import os
@@ -12,7 +12,7 @@ import cv2
 import numpy as np
 from PIL import Image
 
-# 添加项目根目录到路径
+# Add project root directory to path
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
 
 from models import build_model
@@ -20,26 +20,26 @@ from datasets import make_transforms
 from utils.misc import NestedTensor
 from transformers import BertTokenizer
 
-# 导入公共可视化工具
+# Import common visualization utilities
 from utils_visualization import process_image, save_pred_visualization, load_dataset, generate_prediction_statistics
 
 
 def get_args_parser():
     parser = argparse.ArgumentParser('MMCA Visualization', add_help=False)
     
-    # 基本参数
-    parser.add_argument('--model_checkpoint', required=True, type=str, help='模型checkpoint路径')
-    parser.add_argument('--label_file', required=True, type=str, help='数据标注文件路径')
-    parser.add_argument('--dataroot', required=True, type=str, help='图像数据根目录')
-    parser.add_argument('--output_dir', default='./visual_result/mmca', type=str, help='输出目录')
+    # Basic parameters
+    parser.add_argument('--model_checkpoint', required=True, type=str, help='Model checkpoint path')
+    parser.add_argument('--label_file', required=True, type=str, help='Label file path')
+    parser.add_argument('--dataroot', required=True, type=str, help='Image data root directory')
+    parser.add_argument('--output_dir', default='./visual_result/mmca', type=str, help='Output directory')
     
-    # 数据集参数
-    parser.add_argument('--dataset', default='rgbtvg_flir', type=str, help='数据集名称')
-    parser.add_argument('--modality', default='rgbt', type=str, choices=['rgb', 'ir', 'rgbt'], help='图像模态')
-    parser.add_argument('--num_samples', default=0, type=int, help='可视化样本数量（0表示使用整个数据集）')
-    parser.add_argument('--start_idx', default=0, type=int, help='起始索引')
+    # Dataset parameters
+    parser.add_argument('--dataset', default='rgbtvg_flir', type=str, help='Dataset name')
+    parser.add_argument('--modality', default='rgbt', type=str, choices=['rgb', 'ir', 'rgbt'], help='Image modality')
+    parser.add_argument('--num_samples', default=0, type=int, help='Number of samples to visualize (0 means use entire dataset)')
+    parser.add_argument('--start_idx', default=0, type=int, help='Starting index')
     
-    # 训练相关参数（模型初始化需要，但可视化时不使用）
+    # Training related parameters (needed for model initialization, but not used during visualization)
     parser.add_argument('--lr', default=1e-4, type=float)
     parser.add_argument('--lr_bert', default=0., type=float)
     parser.add_argument('--lr_visu_cnn', default=0., type=float)
@@ -55,17 +55,17 @@ def get_args_parser():
     parser.add_argument('--sup_type', default='full', type=str)
     parser.add_argument('--old_dataloader', default=True, type=bool)
     
-    # Augmentation options (推理时不使用)
+    # Augmentation options (not used during inference)
     parser.add_argument('--aug_blur', action='store_true')
     parser.add_argument('--aug_crop', action='store_true')
     parser.add_argument('--aug_scale', action='store_true')
     parser.add_argument('--aug_translate', action='store_true')
     
-    # 模型参数
-    parser.add_argument('--model_name', type=str, default='MMCA', help='模型名称')
+    # Model parameters
+    parser.add_argument('--model_name', type=str, default='MMCA', help='Model name')
     parser.add_argument('--bert_enc_num', default=12, type=int)
     parser.add_argument('--detr_enc_num', default=6, type=int)
-    parser.add_argument('--backbone', default='resnet50', type=str, help='backbone名称')
+    parser.add_argument('--backbone', default='resnet50', type=str, help='Backbone name')
     parser.add_argument('--dilation', action='store_true')
     parser.add_argument('--position_embedding', default='sine', type=str, choices=('sine', 'learned'))
     parser.add_argument('--enc_layers', default=6, type=int)
@@ -77,9 +77,9 @@ def get_args_parser():
     parser.add_argument('--num_queries', default=100, type=int)
     parser.add_argument('--pre_norm', action='store_true')
     
-    # 图像参数
-    parser.add_argument('--imsize', default=640, type=int, help='图像尺寸')
-    parser.add_argument('--emb_size', default=512, type=int, help='embedding维度')
+    # Image parameters
+    parser.add_argument('--imsize', default=640, type=int, help='Image size')
+    parser.add_argument('--emb_size', default=512, type=int, help='Embedding dimension')
     
     # Vision-Language Transformer
     parser.add_argument('--use_vl_type_embed', action='store_true')
@@ -89,7 +89,7 @@ def get_args_parser():
     parser.add_argument('--vl_dim_feedforward', default=2048, type=int)
     parser.add_argument('--vl_enc_layers', default=6, type=int)
     
-    # 其他参数
+    # Other parameters
     parser.add_argument('--max_query_len', default=20, type=int)
     parser.add_argument('--bert_model', default='bert-base-uncased', type=str)
     parser.add_argument('--light', dest='light', default=False, action='store_true')
@@ -132,30 +132,30 @@ def get_args_parser():
 
 
 def load_model(args, device):
-    """加载MMCA模型"""
+    """Load MMCA model"""
     print(f"Loading model from: {args.model_checkpoint}")
     
-    # 加载checkpoint
+    # Load checkpoint
     checkpoint = torch.load(args.model_checkpoint, map_location=device)
     
-    # 如果checkpoint中有保存的args，使用checkpoint的配置来构建模型
+    # If checkpoint contains saved args, use checkpoint configuration to build model
     if 'args' in checkpoint:
         print("Using model configuration from checkpoint...")
         model_args = checkpoint['args']
-        # 保留可视化相关的参数
+        # Preserve visualization-related parameters
         model_args.gpu_id = args.gpu_id
         model_args.output_dir = args.output_dir
         model_args.num_samples = args.num_samples
         model_args.start_idx = args.start_idx
         model_args.label_file = args.label_file
         model_args.dataroot = args.dataroot
-        args = model_args  # 使用checkpoint中的配置
+        args = model_args  # Use checkpoint configuration
     
-    # 构建模型 (MMCA的build_model只返回模型对象，不是元组)
+    # Build model (MMCA's build_model returns only model object, not tuple)
     model = build_model(args)
     model.to(device)
     
-    # 加载模型权重
+    # Load model weights
     if 'model' in checkpoint:
         model.load_state_dict(checkpoint['model'], strict=False)
     else:
@@ -163,40 +163,40 @@ def load_model(args, device):
     
     model.eval()
     print("Model loaded successfully!")
-    return model, args  # 返回更新后的args
+    return model, args  # Return updated args
 
 
 
 
 def visualize_dataset(args):
-    """可视化数据集，按图片分组处理"""
-    # 设置GPU
+    """Visualize dataset, process by image groups"""
+    # Set GPU
     os.environ['CUDA_VISIBLE_DEVICES'] = args.gpu_id
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     
-    # 加载模型（可能会更新args为checkpoint中的配置）
+    # Load model (may update args to checkpoint configuration)
     model, args = load_model(args, device)
     
-    # 初始化 tokenizer
+    # Initialize tokenizer
     print(f"Loading tokenizer: {args.bert_model}")
     tokenizer = BertTokenizer.from_pretrained(args.bert_model)
     
-    # 加载数据集
+    # Load dataset
     dataset = load_dataset(args.label_file)
     
-    # 确定要可视化的样本范围
+    # Determine sample range to visualize
     end_idx = args.start_idx + args.num_samples if args.num_samples > 0 else len(dataset)
     end_idx = min(end_idx, len(dataset))
     samples_to_process = dataset[args.start_idx:end_idx]
     
     print(f"Visualizing samples {args.start_idx} to {end_idx-1} (total: {len(samples_to_process)})")
     
-    # 按图片文件名分组
+    # Group by image filename
     image_groups = {}
     for idx, item in enumerate(samples_to_process):
         sample_idx = args.start_idx + idx
         
-        # 解析数据格式
+        # Parse data format
         if str(args.dataset).startswith('rgbtvg'):
             img_filename = item[0]
             img_size = item[1]
@@ -209,7 +209,7 @@ def visualize_dataset(args):
             bbox_gt = item[2]
             text = item[3]
         
-        # 按图片文件名分组
+        # Group by image filename
         if img_filename not in image_groups:
             image_groups[img_filename] = []
         
@@ -222,28 +222,28 @@ def visualize_dataset(args):
     
     print(f"Found {len(image_groups)} unique images with annotations")
     
-    # 构建变换
+    # Build transforms
     transform = make_transforms(args, 'val')
     
-    # 处理每个图片组
+    # Process each image group
     success_count = 0
     fail_count = 0
     processed_images = 0
-    prediction_stats = []  # 用于统计每个图片的预测数量
+    prediction_stats = []  # For statistics of predictions per image
     
     for img_filename, group_items in image_groups.items():
         processed_images += 1
         img_path = os.path.join(args.dataroot, img_filename)
         
         try:
-            # 使用第一个样本来处理图像（所有样本使用同一张图）
+            # Use first sample to process image (all samples use same image)
             first_item = group_items[0]
             result = process_image(args, img_path, first_item['text'], transform)
             if result is None:
                 fail_count += len(group_items)
                 continue
             
-            # 根据模态解析返回值
+            # Parse return value based on modality
             if args.modality == 'rgbt':
                 if len(result) != 4:
                     fail_count += len(group_items)
@@ -260,20 +260,20 @@ def visualize_dataset(args):
                 fail_count += len(group_items)
                 continue
             
-            # 为每个查询进行预测
+            # Predict for each query
             predictions = []
             for item in group_items:
                 text = item['text']
                 
-                # 准备模型输入
+                # Prepare model input
                 img_tensor_batch = img_tensor.unsqueeze(0).to(device)
                 img_mask_batch = img_mask.unsqueeze(0).to(device)
                 img_nt = NestedTensor(img_tensor_batch, img_mask_batch)
                 
-                # MMCA使用BERT tokenizer，完全模拟训练时的数据流程
+                # MMCA uses BERT tokenizer, fully simulate training data flow
                 from datasets.data_loader import read_examples, convert_examples_to_features
                 
-                # 使用与训练时相同的tokenizer和参数
+                # Use same tokenizer and parameters as training
                 examples = read_examples(text, 0)  # idx=0 for visualization
                 features = convert_examples_to_features(
                     examples=examples, seq_length=args.max_query_len, tokenizer=tokenizer)
@@ -281,12 +281,12 @@ def visualize_dataset(args):
                 word_id = features[0].input_ids
                 word_mask = features[0].input_mask
                 
-                # 完全按照collate_fn的处理方式
+                # Fully follow collate_fn processing
                 word_id_tensor = torch.tensor(np.array([word_id]), dtype=torch.long).to(device)
                 word_mask_tensor = torch.from_numpy(np.array([word_mask])).to(device)
                 text_nt = NestedTensor(word_id_tensor, word_mask_tensor)
                 
-                # 模型推理
+                # Model inference
                 with torch.no_grad():
                     pred_boxes = model(img_nt, text_nt)
                 
@@ -298,13 +298,13 @@ def visualize_dataset(args):
                     'sample_idx': item['sample_idx']
                 })
             
-            # 保存合并的预测可视化（单图，多框，编号+颜色区分）
+            # Save merged prediction visualization (single image, multiple boxes, numbered and color-coded)
             save_pred_visualization(
                 args, pil_img_original, pil_img_ir, predictions,
                 img_filename, args.output_dir, "mmca"
             )
             
-            # 记录统计信息
+            # Record statistics
             prediction_stats.append({
                 'image': img_filename,
                 'predictions': len(predictions)
@@ -318,7 +318,7 @@ def visualize_dataset(args):
             fail_count += len(group_items)
             continue
     
-    # 生成统计报告
+    # Generate statistics report
     generate_prediction_statistics(args.output_dir, prediction_stats, args.dataset, args.modality, "mmca")
     
     print(f"\nVisualization complete!")

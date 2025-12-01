@@ -22,7 +22,7 @@ for dataset in "${DATASETS[@]}"; do
             continue
         fi
         
-        # 运行测试
+        # Run test
         if bash visualize_scripts/shell_scripts/visualize_mdetr_clip.sh "$dataset" "$modality" "$MODEL_CHECKPOINT"; then
             SUCCESS_COUNT=$((SUCCESS_COUNT + 1))
         else

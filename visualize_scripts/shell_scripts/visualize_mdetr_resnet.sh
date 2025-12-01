@@ -1,25 +1,23 @@
 #!/bin/bash
-# ===================== MDETR-ResNet可视化脚本 =====================
-# 使用示例：
+# ===================== MDETR-ResNet Visualization Script =====================
+# Usage:
 # bash visualize_scripts/shell_scripts/visualize_mdetr_resnet.sh [DATASET] [MODALITY] [MODEL_CHECKPOINT]
-# 或者直接运行使用默认参数
+# Or run directly with default parameters
 
 
 
-# ===================== 参数解析 =====================
-# 从命令行参数获取，如果没有则使用默认值
-DATASET=${1:-"rgbtvg_flir"}  # 默认rgbtvg_flir
-MODALITY=${2:-"ir"}          # 默认ir
+# ===================== Parameter Parsing =====================
+DATASET=${1:-"rgbtvg_flir"}
+MODALITY=${2:-"ir"}
 MODEL_CHECKPOINT=${3:-"../dataset_and_pretrain_model/result/MDETR_resnet/MDETR_resnet_224_ir_flir_best.pth"}
 
-# ===================== 配置参数 =====================
-# 模型相关
-MODEL_TYPE="ResNet"  # ResNet 或 CLIP
-BACKBONE="resnet50"  # resnet50 或其他
+# ===================== Configuration Parameters =====================
+MODEL_TYPE="ResNet"
+BACKBONE="resnet50"
 BERT_ENC_NUM=12
 DETR_ENC_NUM=6
 
-# 根据数据集设置数据路径
+# Set data paths based on dataset
 case $DATASET in
     "rgbtvg_flir")
         LABEL_FILE="../dataset_and_pretrain_model/datasets/VG/ref_data_shuffled/rgbtvg_flir/rgbtvg_flir_val.pth"
@@ -47,16 +45,16 @@ case $DATASET in
         ;;
 esac
 
-# 可视化参数 - 新的目录结构：模型名称/数据集/模态
+# Visualization parameters - new directory structure: model_name/dataset/modality
 OUTPUT_DIR="./visual_result/mdetr_resnet/${DATASET}/${MODALITY}"
-NUM_SAMPLES=0  # 可视化样本数（0表示使用整个数据集）
-START_IDX=0      # 起始索引
-IMSIZE=224       # 图像尺寸
+NUM_SAMPLES=0
+START_IDX=0
+IMSIZE=224
 
-# GPU配置
+# GPU configuration
 GPU_ID="0"
 
-# ===================== 运行可视化 =====================
+# ===================== Run Visualization =====================
 echo "Starting MDETR-ResNet Visualization..."
 echo "Dataset: $DATASET"
 echo "Modality: $MODALITY"

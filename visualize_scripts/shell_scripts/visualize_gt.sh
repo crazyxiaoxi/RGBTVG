@@ -1,16 +1,15 @@
 #!/bin/bash
-# ===================== GT可视化脚本 =====================
-# 使用示例：
+# ===================== GT Visualization Script =====================
+# Usage:
 # bash visualize_scripts/shell_scripts/visualize_gt.sh [DATASET] [MODALITY]
-# 或者直接运行使用默认参数
+# Or run directly with default parameters
 
-# ===================== 参数解析 =====================
-# 从命令行参数获取，如果没有则使用默认值
-DATASET=${1:-"rgbtvg_flir"}  # 默认rgbtvg_flir
-MODALITY=${2:-"rgb"}         # 默认rgb
+# ===================== Parameter Parsing =====================
+DATASET=${1:-"rgbtvg_flir"}
+MODALITY=${2:-"rgb"}
 
-# ===================== 配置参数 =====================
-# 根据数据集设置数据路径
+# ===================== Configuration Parameters =====================
+# Set data paths based on dataset
 case $DATASET in
     "rgbtvg_flir")
         LABEL_FILE="../dataset_and_pretrain_model/datasets/VG/ref_data_shuffled/rgbtvg_flir/rgbtvg_flir_val.pth"
@@ -38,13 +37,13 @@ case $DATASET in
         ;;
 esac
 
-# 可视化参数 - 新的目录结构：gt/数据集/模态
+# Visualization parameters - new directory structure: gt/dataset/modality
 OUTPUT_DIR="./visual_result/gt/${DATASET}/${MODALITY}"
-NUM_SAMPLES=0  # 可视化样本数（0表示使用整个数据集）
-START_IDX=0      # 起始索引
-IMSIZE=224       # 图像尺寸
+NUM_SAMPLES=0
+START_IDX=0
+IMSIZE=224
 
-# ===================== 运行可视化 =====================
+# ===================== Run Visualization =====================
 echo "Starting GT Visualization..."
 echo "Dataset: $DATASET"
 echo "Modality: $MODALITY"

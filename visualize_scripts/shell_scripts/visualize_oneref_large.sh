@@ -1,21 +1,21 @@
 #!/bin/bash
-# ===================== OneRef Large 可视化脚本 =====================
-# 使用示例：
+# ===================== OneRef Large Visualization Script =====================
+# Usage:
 # bash visualize_scripts/shell_scripts/visualize_oneref_large.sh [DATASET] [MODALITY] [MODEL_CHECKPOINT]
 # DATASET: rgbtvg_flir, rgbtvg_m3fd, rgbtvg_mfad
 # MODALITY: rgb, ir, rgbt
 
-# ===================== 参数解析 =====================
+# ===================== Parameter Parsing =====================
 DATASET=${1:-"rgbtvg_flir"}
 MODALITY=${2:-"rgb"}
 MODEL_CHECKPOINT=${3:-"../dataset_and_pretrain_model/result/OneRef_L/OneRef_L_rgb_flir_best.pth"}
 
-# 模型相关（Large 尺度 384）
+# Model related (Large scale 384)
 MODEL="beit3_large_patch16_224"
 TASK="grounding"
 SENTENCEPIECE="../dataset_and_pretrain_model/pretrain_model/pretrained_weights/BEIT3/beit3.spm"
 
-# 根据数据集和模态设置 LABEL_FILE 与 DATAROOT
+# Set LABEL_FILE and DATAROOT based on dataset and modality
 case $DATASET in
     "rgbtvg_flir")
         LABEL_FILE="../dataset_and_pretrain_model/datasets/VG/ref_data_shuffled/rgbtvg_flir/rgbtvg_flir_val.pth"
@@ -42,8 +42,8 @@ case $DATASET in
         esac
         ;;
     *)
-        echo "❌ 错误: 不支持的数据集 $DATASET"
-        echo "支持的数据集: rgbtvg_flir, rgbtvg_m3fd, rgbtvg_mfad"
+        echo "Error: Unsupported dataset $DATASET"
+        echo "Supported datasets: rgbtvg_flir, rgbtvg_m3fd, rgbtvg_mfad"
         exit 1
         ;;
  esac
@@ -54,7 +54,7 @@ START_IDX=0
 IMSIZE=224
 GPU_ID="0"
 
-# ===================== 运行可视化 =====================
+# ===================== Run Visualization =====================
 echo "Starting OneRef Large Visualization..."
 echo "Dataset: $DATASET"
 echo "Modality: $MODALITY"

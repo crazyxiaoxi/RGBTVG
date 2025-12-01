@@ -1,14 +1,13 @@
 #!/usr/bin/env python3
 """
-GT可视化脚本
-专门用于保存数据集的Ground Truth可视化结果
+GT visualization script dedicated to saving dataset ground-truth outputs
 """
 import argparse
 import os
 import sys
 from pathlib import Path
 
-# 添加项目根目录到路径
+# Add project root to path
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
 
 from datasets import make_transforms
@@ -17,42 +16,42 @@ from utils_visualization import process_image, save_gt_visualization, load_datas
 def get_args_parser():
     parser = argparse.ArgumentParser('GT Visualization', add_help=False)
     
-    # 基本参数
-    parser.add_argument('--label_file', required=True, type=str, help='数据标注文件路径')
-    parser.add_argument('--dataroot', required=True, type=str, help='图像数据根目录')
-    parser.add_argument('--output_dir', default='./visual_result/gt_only', type=str, help='输出目录')
+    # Basic parameters
+    parser.add_argument('--label_file', required=True, type=str, help='Label file path')
+    parser.add_argument('--dataroot', required=True, type=str, help='Image data root')
+    parser.add_argument('--output_dir', default='./visual_result/gt_only', type=str, help='Output directory')
     
-    # 数据集参数
-    parser.add_argument('--dataset', default='rgbtvg_flir', type=str, help='数据集名称')
-    parser.add_argument('--modality', default='rgb', type=str, choices=['rgb', 'ir', 'rgbt'], help='图像模态')
-    parser.add_argument('--num_samples', default=0, type=int, help='可视化样本数量（0表示使用整个数据集）')
-    parser.add_argument('--start_idx', default=0, type=int, help='起始索引')
+    # Dataset parameters
+    parser.add_argument('--dataset', default='rgbtvg_flir', type=str, help='Dataset name')
+    parser.add_argument('--modality', default='rgb', type=str, choices=['rgb', 'ir', 'rgbt'], help='Image modality')
+    parser.add_argument('--num_samples', default=0, type=int, help='Number of samples to visualize (0 means full dataset)')
+    parser.add_argument('--start_idx', default=0, type=int, help='Starting index')
     
-    # 图像参数
-    parser.add_argument('--imsize', default=224, type=int, help='图像尺寸')
+    # Image parameters
+    parser.add_argument('--imsize', default=224, type=int, help='Image size')
     
     return parser
 
 
 def generate_annotation_statistics(output_dir, annotation_stats, dataset, modality):
-    """生成annotation统计报告"""
+    """Generate annotation statistics report"""
     from pathlib import Path
     
-    # 排序：按annotation数量降序排列
+    # Sort by annotation count descending
     annotation_stats.sort(key=lambda x: x['annotations'], reverse=True)
     
-    # 计算统计信息
+    # Compute summary statistics
     total_images = len(annotation_stats)
     total_annotations = sum(item['annotations'] for item in annotation_stats)
     avg_annotations = total_annotations / total_images if total_images > 0 else 0
     
-    # 统计annotation数量分布
+    # Build annotation count distribution
     annotation_counts = {}
     for item in annotation_stats:
         count = item['annotations']
         annotation_counts[count] = annotation_counts.get(count, 0) + 1
     
-    # 保存统计报告
+    # Save statistics report
     stats_path = os.path.join(output_dir, "annotation_statistics.txt")
     with open(stats_path, 'w', encoding='utf-8') as f:
         f.write("=" * 80 + "\n")
@@ -85,7 +84,7 @@ def generate_annotation_statistics(output_dir, annotation_stats, dataset, modali
         for i, item in enumerate(annotation_stats, 1):
             f.write(f"{i:<6} {item['image']:<50} {item['annotations']:<12}\n")
     
-    # 同时生成CSV格式的统计文件
+    # Optionally generate CSV statistics
     csv_path = os.path.join(output_dir, "annotation_statistics.csv")
     with open(csv_path, 'w', encoding='utf-8') as f:
         f.write("Rank,Image,Annotations\n")
@@ -101,13 +100,13 @@ def generate_annotation_statistics(output_dir, annotation_stats, dataset, modali
 
 
 def visualize_gt_only(args):
-    """只可视化GT标注，按图片分组处理"""
+    """Visualize GT annotations grouped by image"""
     print("Starting GT-only visualization...")
     
-    # 加载数据集
+    # Load dataset
     dataset = load_dataset(args.label_file)
     
-    # 选择要可视化的样本（num_samples=0 表示整个数据集）
+    # Select samples to visualize (num_samples=0 uses entire dataset)
     if args.num_samples > 0:
         end_idx = min(args.start_idx + args.num_samples, len(dataset))
     else:
@@ -115,12 +114,12 @@ def visualize_gt_only(args):
     samples_to_process = dataset[args.start_idx:end_idx]
     print(f"Visualizing GT for samples {args.start_idx} to {end_idx - 1} (total: {len(samples_to_process)})")
     
-    # 按图片文件名分组
+    # Group samples by image filename
     image_groups = {}
     for idx, item in enumerate(samples_to_process):
         sample_idx = args.start_idx + idx
         
-        # 解析数据格式
+        # Parse data format
         if str(args.dataset).startswith('rgbtvg'):
             img_filename = item[0]
             img_size = item[1]
@@ -133,7 +132,7 @@ def visualize_gt_only(args):
             bbox_gt = item[2]
             text = item[3]
         
-        # 按图片文件名分组
+        # Append to image group
         if img_filename not in image_groups:
             image_groups[img_filename] = []
         
@@ -146,28 +145,28 @@ def visualize_gt_only(args):
     
     print(f"Found {len(image_groups)} unique images with GT annotations")
     
-    # 构建变换
+    # Build transforms
     transform = make_transforms(args, 'val')
     
-    # 处理每个图片组
+    # Process each image group
     success_count = 0
     fail_count = 0
     processed_images = 0
-    annotation_stats = []  # 用于统计每个图片的annotation数量
+    annotation_stats = []  # Track annotation count per image
     
     for img_filename, group_items in image_groups.items():
         processed_images += 1
         img_path = os.path.join(args.dataroot, img_filename)
         
         try:
-            # 使用第一个样本来处理图像（所有样本使用同一张图）
+            # Use first sample to process the shared image
             first_item = group_items[0]
             result = process_image(args, img_path, first_item['text'], transform)
             if result is None:
                 fail_count += len(group_items)
                 continue
             
-            # 根据模态解析返回值
+            # Parse return values based on modality
             if args.modality == 'rgbt':
                 if len(result) != 4:
                     fail_count += len(group_items)
@@ -184,13 +183,13 @@ def visualize_gt_only(args):
                 fail_count += len(group_items)
                 continue
             
-            # 保存合并的GT可视化
+            # Save merged GT visualization
             save_combined_gt_visualization(
                 args, pil_img_original, pil_img_ir, group_items, 
                 img_filename, args.output_dir
             )
             
-            # 记录统计信息
+            # Record statistics
             annotation_stats.append({
                 'image': img_filename,
                 'annotations': len(group_items)
@@ -204,7 +203,7 @@ def visualize_gt_only(args):
             fail_count += len(group_items)
             continue
     
-    # 生成统计报告
+    # Generate statistics report
     generate_annotation_statistics(args.output_dir, annotation_stats, args.dataset, args.modality)
     
     print(f"\nGT visualization complete!")
@@ -217,7 +216,7 @@ def visualize_gt_only(args):
 
 
 def save_combined_gt_visualization(args, pil_img_original, pil_img_ir, group_items, img_filename, output_dir):
-    """保存合并的GT可视化结果（每个图片以文件夹形式存储）"""
+    """Save combined GT visualization results (one folder per image)"""
     import torch
     import numpy as np
     import cv2
@@ -226,42 +225,42 @@ def save_combined_gt_visualization(args, pil_img_original, pil_img_ir, group_ite
     img_np = np.array(pil_img_original)
     h, w = img_np.shape[:2]
     
-    # 为每个图片创建单独的文件夹
+    # Create a dedicated folder per image
     img_base_name = Path(img_filename).stem
     img_folder = os.path.join(output_dir, img_base_name)
     Path(img_folder).mkdir(parents=True, exist_ok=True)
     
-    # 生成不同颜色用于区分不同的GT框
+    # Colors for distinguishing GT boxes
     colors = [
-        (255, 0, 0),    # 红色
-        (0, 255, 0),    # 绿色
-        (0, 0, 255),    # 蓝色
-        (255, 255, 0),  # 黄色
-        (255, 0, 255),  # 紫色
-        (0, 255, 255),  # 青色
-        (255, 128, 0),  # 橙色
-        (128, 0, 255),  # 紫罗兰
+        (255, 0, 0),    # Red
+        (0, 255, 0),    # Green
+        (0, 0, 255),    # Blue
+        (255, 255, 0),  # Yellow
+        (255, 0, 255),  # Magenta
+        (0, 255, 255),  # Cyan
+        (255, 128, 0),  # Orange
+        (128, 0, 255),  # Violet
     ]
     
-    # 1. 保存RGB原图（不带框）
+    # 1. Save RGB original image (no boxes)
     rgb_original_path = os.path.join(img_folder, "rgb_original.jpg")
     cv2.imwrite(rgb_original_path, cv2.cvtColor(img_np, cv2.COLOR_RGB2BGR))
     
-    # 2. 对于RGBT模态，保存IR原图（不带框）
+    # 2. Save IR original image for RGBT modality
     if hasattr(args, 'modality') and args.modality == 'rgbt' and pil_img_ir is not None:
         img_ir_np = np.array(pil_img_ir)
         
-        # 保存IR原图
+        # Save IR original image
         ir_original_path = os.path.join(img_folder, "ir_original.jpg")
         if img_ir_np.ndim == 2:
             cv2.imwrite(ir_original_path, img_ir_np)
         else:
             cv2.imwrite(ir_original_path, cv2.cvtColor(img_ir_np, cv2.COLOR_RGB2BGR))
     
-    # 3. 保存RGB图 + 所有GT框
+    # 3. Save RGB image with all GT boxes
     vis_img_rgb = np.ascontiguousarray(img_np.copy())
     
-    # 收集所有文本
+    # Collect caption text
     all_texts = []
     
     for i, item in enumerate(group_items):
@@ -269,7 +268,7 @@ def save_combined_gt_visualization(args, pil_img_original, pil_img_ir, group_ite
         text = item['text']
         sample_idx = item['sample_idx']
         
-        # 处理bbox
+        # Process bbox
         if isinstance(bbox_gt, torch.Tensor):
             bbox_gt = bbox_gt.cpu().numpy()
         elif isinstance(bbox_gt, list):
@@ -285,30 +284,30 @@ def save_combined_gt_visualization(args, pil_img_original, pil_img_ir, group_ite
             print(f"Warning: Unexpected gt_bbox format: {bbox_gt}")
             continue
         
-        # 限制在图像范围内
+        # Clamp to image bounds
         gt_x_min = max(0, min(gt_x_min, w - 1))
         gt_y_min = max(0, min(gt_y_min, h - 1))
         gt_x_max = max(0, min(gt_x_max, w - 1))
         gt_y_max = max(0, min(gt_y_max, h - 1))
         
-        # 选择颜色
+        # Choose color
         color = colors[i % len(colors)]
         
-        # 画框
+        # Draw rectangle
         cv2.rectangle(vis_img_rgb, (gt_x_min, gt_y_min), (gt_x_max, gt_y_max), color, 2)
         
-        # 添加标签（框的编号）
+        # Add label with box index
         cv2.putText(vis_img_rgb, f"{i+1}", (gt_x_min, gt_y_min-5), 
                    cv2.FONT_HERSHEY_SIMPLEX, 0.6, color, 2)
         
-        # 收集文本
+        # Collect text
         all_texts.append(f"{i+1}. {text}")
     
-    # 保存RGB图 + GT框
+    # Save RGB image with GT boxes
     rgb_gt_path = os.path.join(img_folder, "rgb_with_gt.jpg")
     cv2.imwrite(rgb_gt_path, cv2.cvtColor(vis_img_rgb, cv2.COLOR_RGB2BGR))
     
-    # 4. 对于RGBT模态，保存IR图 + 所有GT框
+    # 4. Save IR image with GT boxes for RGBT modality
     if hasattr(args, 'modality') and args.modality == 'rgbt' and pil_img_ir is not None:
         img_ir_np = np.array(pil_img_ir)
         
@@ -319,7 +318,7 @@ def save_combined_gt_visualization(args, pil_img_original, pil_img_ir, group_ite
         
         vis_img_ir = np.ascontiguousarray(img_ir_np.copy())
         
-        # 画所有GT框到IR图上
+        # Draw all GT boxes on IR image
         for i, item in enumerate(group_items):
             bbox_gt = item['bbox_gt']
             
@@ -343,7 +342,7 @@ def save_combined_gt_visualization(args, pil_img_original, pil_img_ir, group_ite
         ir_gt_path = os.path.join(img_folder, "ir_with_gt.jpg")
         cv2.imwrite(ir_gt_path, cv2.cvtColor(vis_img_ir, cv2.COLOR_RGB2BGR))
     
-    # 5. 保存合并的文本文件
+    # 5. Save combined text file
     txt_path = os.path.join(img_folder, "annotations.txt")
     with open(txt_path, 'w', encoding='utf-8') as f:
         f.write(f"Image: {img_filename}\n")

@@ -1,84 +1,84 @@
 #!/bin/bash
-# ===================== GT全面测试脚本 =====================
-# 自动测试所有数据集和模态组合的GT可视化
-# 使用示例：bash run_all_gt_tests.sh
+# ===================== GT Comprehensive Test Script =====================
+# Automatically test GT visualization for all dataset and modality combinations
+# Usage: bash run_all_gt_tests.sh
 
-echo "🚀 开始GT全面测试..."
-echo "测试范围："
-echo "  - 数据集: flir, m3fd, mfad"
-echo "  - 模态: rgb, ir, rgbt"
-echo "  - 总计: 9种组合"
+echo "Starting GT comprehensive test..."
+echo "Test scope:"
+echo "  - Datasets: flir, m3fd, mfad"
+echo "  - Modalities: rgb, ir, rgbt"
+echo "  - Total: 9 combinations"
 echo "========================================"
 
 
-# 定义数据集和模态
+# Define datasets and modalities
 DATASETS=("rgbtvg_flir" "rgbtvg_m3fd" "rgbtvg_mfad")
 MODALITIES=("rgb" "ir" "rgbt")
-# 计数器
+# Counter
 TOTAL_TESTS=9
 CURRENT_TEST=0
 SUCCESS_COUNT=0
 FAILED_TESTS=()
 
-# 开始时间
+# Start time
 START_TIME=$(date +%s)
 
-# 遍历所有组合
+# Iterate through all combinations
 for dataset in "${DATASETS[@]}"; do
     for modality in "${MODALITIES[@]}"; do
         CURRENT_TEST=$((CURRENT_TEST + 1))
         
         echo ""
-        echo "📊 测试 $CURRENT_TEST/$TOTAL_TESTS: $dataset + $modality"
-        echo "   输出: ./visual_result/gt/$dataset/$modality"
+        echo "Test $CURRENT_TEST/$TOTAL_TESTS: $dataset + $modality"
+        echo "   Output: ./visual_result/gt/$dataset/$modality"
         echo "----------------------------------------"
         
-        # 运行测试
+        # Run test
         if bash visualize_scripts/shell_scripts/visualize_gt.sh "$dataset" "$modality"; then
-            echo "✅ 测试成功: $dataset + $modality"
+            echo "Test successful: $dataset + $modality"
             SUCCESS_COUNT=$((SUCCESS_COUNT + 1))
         else
-            echo "❌ 测试失败: $dataset + $modality"
+            echo "Test failed: $dataset + $modality"
             FAILED_TESTS+=("$dataset-$modality")
         fi
         
         echo "----------------------------------------"
         
-        # 短暂暂停避免系统过载
+        # Brief pause to avoid system overload
         sleep 1
     done
 done
 
-# 结束时间和统计
+# End time and statistics
 END_TIME=$(date +%s)
 DURATION=$((END_TIME - START_TIME))
 MINUTES=$((DURATION / 60))
 SECONDS=$((DURATION % 60))
 
 echo ""
-echo "🎉 GT全面测试完成！"
+echo "GT comprehensive test completed!"
 echo "========================================"
-echo "📈 测试统计:"
-echo "   总测试数: $TOTAL_TESTS"
-echo "   成功: $SUCCESS_COUNT"
-echo "   失败: $((TOTAL_TESTS - SUCCESS_COUNT))"
-echo "   耗时: ${MINUTES}分${SECONDS}秒"
+echo "Test statistics:"
+echo "   Total tests: $TOTAL_TESTS"
+echo "   Success: $SUCCESS_COUNT"
+echo "   Failed: $((TOTAL_TESTS - SUCCESS_COUNT))"
+echo "   Duration: ${MINUTES}m ${SECONDS}s"
 
 if [ ${#FAILED_TESTS[@]} -gt 0 ]; then
     echo ""
-    echo "❌ 失败的测试:"
+    echo "Failed tests:"
     for failed in "${FAILED_TESTS[@]}"; do
         echo "   - $failed"
     done
 fi
 
 echo ""
-echo "📁 结果目录结构:"
+echo "Result directory structure:"
 echo "visual_result/gt/"
 echo "├── rgbtvg_flir/"
-echo "│   ├── rgb/     # RGB模态GT结果"
-echo "│   ├── ir/      # IR模态GT结果"
-echo "│   └── rgbt/    # RGBT模态GT结果 (双图像输出)"
+echo "│   ├── rgb/"
+echo "│   ├── ir/"
+echo "│   └── rgbt/"
 echo "├── rgbtvg_m3fd/"
 echo "│   ├── rgb/"
 echo "│   ├── ir/"
@@ -89,18 +89,18 @@ echo "    ├── ir/"
 echo "    └── rgbt/"
 
 echo ""
-echo "💡 提示:"
-echo "   - RGBT模态会生成两张图片: *_rgb.jpg 和 *_ir.jpg"
-echo "   - 每个测试默认生成100个样本的GT可视化"
-echo "   - 如需修改样本数，请编辑 visualize_gt.sh 中的 NUM_SAMPLES"
-echo "   - GT文件命名格式: gt_000001_rgb.jpg, gt_000001_ir.jpg, gt_000001.txt"
+echo "Tips:"
+echo "   - RGBT modality generates two images: *_rgb.jpg and *_ir.jpg"
+echo "   - Each test generates 100 GT visualization samples by default"
+echo "   - To modify sample count, edit NUM_SAMPLES in visualize_gt.sh"
+echo "   - GT file naming format: gt_000001_rgb.jpg, gt_000001_ir.jpg, gt_000001.txt"
 
 if [ $SUCCESS_COUNT -eq $TOTAL_TESTS ]; then
     echo ""
-    echo "🎊 所有GT测试都成功完成！"
+    echo "All GT tests completed successfully!"
     exit 0
 else
     echo ""
-    echo "⚠️  部分GT测试失败，请检查上述失败列表"
+    echo "Some GT tests failed, please check the failed list above"
     exit 1
 fi

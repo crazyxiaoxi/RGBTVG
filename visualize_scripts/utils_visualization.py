@@ -1,6 +1,5 @@
 """
-公共可视化工具模块
-包含所有模型通用的图像处理和可视化保存函数
+Shared visualization utilities for preprocessing, GT saving, and reporting
 """
 
 import os
@@ -12,23 +11,23 @@ from pathlib import Path
 
 
 def process_image(args, img_path, text, transform):
-    """处理单张图像，返回transform后的图像用于模型推理和原始图像用于可视化
+    """Process a single image, returning transformed tensors for inference and originals for visualization
     
     Args:
-        args: 参数对象，包含modality等配置
-        img_path: 图像路径
-        text: 文本描述
-        transform: 图像变换函数
+        args: configuration namespace with modality info
+        img_path: path to the image
+        text: text description
+        transform: callable applied to the image
         
     Returns:
-        对于RGBT模态: (img_tensor, img_mask, pil_img_original, pil_img_ir)
-        对于其他模态: (img_tensor, img_mask, pil_img_original)
+        For RGBT modality: (img_tensor, img_mask, pil_img_original, pil_img_ir)
+        Otherwise: (img_tensor, img_mask, pil_img_original)
     """
-    pil_img_original = None  # 保存原始RGB图像用于可视化
-    pil_img_ir = None  # 保存原始IR图像用于可视化
+    pil_img_original = None  # keep original RGB image for visualization
+    pil_img_ir = None  # keep original IR image for visualization
     
     if args.modality == 'rgbt':
-        # 尝试自动配对RGB和IR图像
+        # Try to automatically pair RGB and IR images
         if '/rgb/' in img_path:
             rgb_path = img_path
             ir_path = img_path.replace('/rgb/', '/ir/')
@@ -39,12 +38,12 @@ def process_image(args, img_path, text, transform):
             rgb_path = img_path
             ir_path = img_path.replace('rgb', 'ir')
         
-        # 检查文件是否存在
+        # Verify both files exist
         if not os.path.exists(rgb_path) or not os.path.exists(ir_path):
             print(f"Warning: RGB or IR image not found: {rgb_path}, {ir_path}")
             return None, None, None, None
         
-        # 加载RGB和IR图像，完全模仿数据加载器的逻辑
+        # Load RGB and IR images exactly like the dataloader
         img_rgb_path = rgb_path
         img_ir_path = ir_path
         img_rgb = Image.open(img_rgb_path).convert("RGB")
@@ -52,7 +51,7 @@ def process_image(args, img_path, text, transform):
         pil_img_original = img_rgb.copy()
         pil_img_ir = img_ir.copy()
 
-        # 与数据加载器完全一致的处理
+        # Mirror dataloader preprocessing
         np_rgb = np.array(img_rgb)
         np_ir = np.array(img_ir)
         if np_ir.shape[-1] == 3:
@@ -61,11 +60,11 @@ def process_image(args, img_path, text, transform):
         np_combined = np.concatenate([np_rgb, np_ir], axis=-1)
         img = Image.fromarray(np_combined)
 
-        # 获取图像尺寸
+        # Obtain image size
         w, h = img.size
         full_box_xyxy = torch.tensor([0.0, 0.0, float(w - 1), float(h - 1)], dtype=torch.float32)
 
-        # 使用transform处理RGBT图像
+        # Apply transform to RGBT image
         input_dict = {'img': img, 'box': full_box_xyxy, 'text': text}
         input_dict = transform(input_dict)
 
@@ -75,17 +74,17 @@ def process_image(args, img_path, text, transform):
         if not os.path.exists(img_path):
             print(f"Warning: Image not found: {img_path}")
             return None, None, None
-        # IR图像转换为RGB（3通道），与dataloader保持一致
+        # Convert IR image to RGB (3 channels) to match dataloader
         pil_img = Image.open(img_path).convert('RGB')
         
-        # 保存原始图像用于可视化
+        # Store original image for visualization
         pil_img_original = pil_img.copy()
         
-        # 获取图像尺寸
+        # Get image dimensions
         w, h = pil_img.size
         full_box_xyxy = torch.tensor([0.0, 0.0, float(w - 1), float(h - 1)], dtype=torch.float32)
         
-        # 应用变换
+        # Apply transform
         input_dict = {'img': pil_img, 'box': full_box_xyxy, 'text': text}
         input_dict = transform(input_dict)
 
@@ -93,21 +92,20 @@ def process_image(args, img_path, text, transform):
 
 
 def save_gt_visualization(args, pil_img_original, pil_img_ir, text, gt_bbox, sample_idx, output_dir, model_name="model"):
-    """保存GT可视化结果（仅显示真实框）
-    对于RGBT模态：保存RGB图+GT框、IR图+GT框、1个txt文件、1张原图（不带框）
+    """Save GT visualization (GT boxes only).
     
     Args:
-        args: 参数对象，包含modality、dataset等配置
-        pil_img_original: 原始RGB图像
-        pil_img_ir: 原始IR图像（可选）
-        text: 文本描述
-        gt_bbox: 真实边界框
-        sample_idx: 样本索引
-        output_dir: 输出目录
-        model_name: 模型名称，用于文件命名
+        args: namespace containing modality/dataset config
+        pil_img_original: original RGB PIL image
+        pil_img_ir: optional IR image
+        text: caption text
+        gt_bbox: ground-truth bounding box
+        sample_idx: sample index
+        output_dir: directory for outputs
+        model_name: used for file naming
         
     Returns:
-        str: RGB图像保存路径
+        str: path to RGB visualization
     """
     img_np = np.array(pil_img_original)
     
@@ -134,16 +132,16 @@ def save_gt_visualization(args, pil_img_original, pil_img_ir, text, gt_bbox, sam
     gt_y_max = max(0, min(gt_y_max, h - 1))
     
     Path(output_dir).mkdir(parents=True, exist_ok=True)
-    # 3. 保存原图（不带框）- 只对RGBT模态保存
+    # Save original image (mainly for RGBT workflows)
     original_path = os.path.join(output_dir, f"{model_name}_{sample_idx:06d}_original.jpg")
     cv2.imwrite(original_path, cv2.cvtColor(img_np, cv2.COLOR_RGB2BGR))
-    # 1. 保存RGB图 + GT框
+    # Save RGB image with GT box
     vis_img_rgb = np.ascontiguousarray(img_np)
-    cv2.rectangle(vis_img_rgb, (gt_x_min, gt_y_min), (gt_x_max, gt_y_max), (0, 0, 255), 2)  # 红色真实框
+    cv2.rectangle(vis_img_rgb, (gt_x_min, gt_y_min), (gt_x_max, gt_y_max), (0, 0, 255), 2)  # Red GT box
     rgb_path = os.path.join(output_dir, f"{model_name}_{sample_idx:06d}_rgb.jpg")
     cv2.imwrite(rgb_path, cv2.cvtColor(vis_img_rgb, cv2.COLOR_RGB2BGR))
     
-    # 2. 对于RGBT模态，保存IR图 + GT框
+    # For RGBT, save IR image with GT box
     if hasattr(args, 'modality') and args.modality == 'rgbt' and pil_img_ir is not None:
         img_ir_np = np.array(pil_img_ir)
 
@@ -153,13 +151,13 @@ def save_gt_visualization(args, pil_img_original, pil_img_ir, text, gt_bbox, sam
             img_ir_np = np.repeat(img_ir_np, 3, axis=2)
         
         vis_img_ir = np.ascontiguousarray(img_ir_np)
-        cv2.rectangle(vis_img_ir, (gt_x_min, gt_y_min), (gt_x_max, gt_y_max), (0, 0, 255), 2)  # 红色真实框
+        cv2.rectangle(vis_img_ir, (gt_x_min, gt_y_min), (gt_x_max, gt_y_max), (0, 0, 255), 2)
         ir_path = os.path.join(output_dir, f"{model_name}_{sample_idx:06d}_ir.jpg")
         cv2.imwrite(ir_path, cv2.cvtColor(vis_img_ir, cv2.COLOR_RGB2BGR))
         
 
     
-    # 4. 保存文本文件
+    # Save caption text file
     txt_path = os.path.join(output_dir, f"{model_name}_{sample_idx:06d}.txt")
     with open(txt_path, 'w', encoding='utf-8') as f:
         f.write(text)
@@ -168,26 +166,11 @@ def save_gt_visualization(args, pil_img_original, pil_img_ir, text, gt_bbox, sam
 
 
 def save_visualization(args, pil_img_original, pil_img_ir, text, pred_bbox, gt_bbox, sample_idx, output_dir, model_name="model"):
-    """保存可视化结果，分别保存预测框和真实框的图像
-    
-    Args:
-        args: 参数对象，包含modality、dataset等配置
-        pil_img_original: 原始RGB图像
-        pil_img_ir: 原始IR图像（可选）
-        text: 文本描述
-        pred_bbox: 预测的边界框
-        gt_bbox: 真实边界框
-        sample_idx: 样本索引
-        output_dir: 输出目录
-        model_name: 模型名称，用于文件命名
-        
-    Returns:
-        tuple: (pred_rgb_path, gt_rgb_path)
-    """
-    # 保存预测框图像
+    """Save visualization outputs for predicted and ground-truth boxes."""
+    # Save prediction visualization
     pred_rgb_path = save_pred_visualization(args, pil_img_original, pil_img_ir, text, pred_bbox, sample_idx, output_dir, model_name)
     
-    # 保存GT框图像
+    # Save GT visualization
     gt_rgb_path = save_gt_visualization(args, pil_img_original, pil_img_ir, text, gt_bbox, sample_idx, output_dir, model_name)
     
     return pred_rgb_path, gt_rgb_path
@@ -199,45 +182,45 @@ def save_pred_visualization(args, pil_img_original, pil_img_ir,
                             sample_idx_or_output_dir,
                             output_dir_or_model_name,
                             model_name="model"):
-    """保存预测可视化结果
+    """Save prediction visualizations.
 
-    支持两种用法：
+    Supports two usages:
 
-    1）旧用法：单个预测框
-        text_or_predictions -> 文本描述
-        pred_bbox_or_img_filename -> 预测框 (x_center, y_center, w, h) 归一化坐标
-        sample_idx_or_output_dir -> 样本索引
-        output_dir_or_model_name -> 输出目录
-        model_name -> 模型名称（用于文件命名）
+    1) Legacy: single prediction box
+       text_or_predictions -> caption text
+       pred_bbox_or_img_filename -> prediction bbox (x_center, y_center, w, h) normalized
+       sample_idx_or_output_dir -> sample index
+       output_dir_or_model_name -> output directory
+       model_name -> used for filenames
 
-    2）新用法：同一张图上的多个预测框（当前所有可视化脚本使用）
-        text_or_predictions -> predictions 列表，每个元素为 {'bbox': ..., 'text': ..., ...}
-        pred_bbox_or_img_filename -> 原图文件名（带扩展名）
-        sample_idx_or_output_dir -> 输出目录
-        output_dir_or_model_name -> 模型名称（可选，用于日志/统计，不用于文件名）
+    2) Modern: multiple predictions on one image (current default)
+       text_or_predictions -> list of {'bbox': ..., 'text': ...}
+       pred_bbox_or_img_filename -> source image filename
+       sample_idx_or_output_dir -> output directory
+       output_dir_or_model_name -> optional model name
     """
 
     img_np = np.array(pil_img_original)
     h, w = img_np.shape[:2]
 
-    # ---------- 新用法：多框合并到单图 ----------
+    # ---------- Modern usage: merge multiple boxes into one image ----------
     if isinstance(text_or_predictions, list) and len(text_or_predictions) > 0 and isinstance(text_or_predictions[0], dict):
         predictions = text_or_predictions
         img_filename = pred_bbox_or_img_filename
         output_dir = sample_idx_or_output_dir
 
-        # 如果调用方传了模型名称，就用它覆盖默认值
+        # Override model name if provided
         if isinstance(output_dir_or_model_name, str):
             model_name = output_dir_or_model_name
 
-        # 创建输出目录
+        # Ensure output directory exists
         Path(output_dir).mkdir(parents=True, exist_ok=True)
 
-        # 输出文件名与原图文件名一致
+        # Use original filename for output
         img_base_name = Path(img_filename).name
         save_path = os.path.join(output_dir, img_base_name)
 
-        # 颜色列表，用于区分不同预测框
+        # Color palette to distinguish predictions
         colors = [
             (0, 255, 0),
             (255, 0, 0),
@@ -256,7 +239,7 @@ def save_pred_visualization(args, pil_img_original, pil_img_ir,
             if bbox is None:
                 continue
 
-            # 兼容 tensor / list / ndarray
+            # Support tensor/list/ndarray
             if isinstance(bbox, torch.Tensor):
                 bbox = bbox.cpu().numpy()
             elif isinstance(bbox, list):
@@ -266,7 +249,7 @@ def save_pred_visualization(args, pil_img_original, pil_img_ir,
                 print(f"Warning: Unexpected pred_bbox format: {bbox}")
                 continue
 
-            # 使用原来 save_pred_visualization 的坐标和偏移逻辑
+            # Reuse original coordinate conversion logic
             pred_x_center, pred_y_center, pred_bbox_w, pred_bbox_h = bbox
 
             pred_x_min = int((pred_x_center - pred_bbox_w / 2) * w)
@@ -306,7 +289,7 @@ def save_pred_visualization(args, pil_img_original, pil_img_ir,
         cv2.imwrite(save_path, cv2.cvtColor(vis_img_rgb, cv2.COLOR_RGB2BGR))
         return save_path
 
-    # ---------- 兼容旧用法：单个预测框，按原逻辑保存 ----------
+    # ---------- Legacy usage: single prediction, original behavior ----------
     text = text_or_predictions
     pred_bbox = pred_bbox_or_img_filename
     sample_idx = sample_idx_or_output_dir
@@ -365,14 +348,7 @@ def save_pred_visualization(args, pil_img_original, pil_img_ir,
 
 
 def load_dataset(label_file):
-    """加载数据集文件
-    
-    Args:
-        label_file: 数据集标签文件路径
-        
-    Returns:
-        list: 数据集列表
-    """
+    """Load dataset pickle/pt file and return samples list."""
     import torch
     
     if not os.path.exists(label_file):
@@ -385,24 +361,24 @@ def load_dataset(label_file):
 
 
 def generate_prediction_statistics(output_dir, prediction_stats, dataset, modality, model_name):
-    """生成预测统计报告"""
+    """Generate prediction statistics report."""
     from pathlib import Path
     
-    # 排序：按预测数量降序排列
+    # Sort by prediction count descending
     prediction_stats.sort(key=lambda x: x['predictions'], reverse=True)
     
-    # 计算统计信息
+    # Compute summary statistics
     total_images = len(prediction_stats)
     total_predictions = sum(item['predictions'] for item in prediction_stats)
     avg_predictions = total_predictions / total_images if total_images > 0 else 0
     
-    # 统计预测数量分布
+    # Build prediction count distribution
     prediction_counts = {}
     for item in prediction_stats:
         count = item['predictions']
         prediction_counts[count] = prediction_counts.get(count, 0) + 1
     
-    # 保存统计报告
+    # Save statistics report
     stats_path = os.path.join(output_dir, "prediction_statistics.txt")
     with open(stats_path, 'w', encoding='utf-8') as f:
         f.write("=" * 80 + "\n")
@@ -436,7 +412,7 @@ def generate_prediction_statistics(output_dir, prediction_stats, dataset, modali
         for i, item in enumerate(prediction_stats, 1):
             f.write(f"{i:<6} {item['image']:<50} {item['predictions']:<12}\n")
     
-    # 同时生成CSV格式的统计文件
+    # Optionally generate CSV statistics
     csv_path = os.path.join(output_dir, "prediction_statistics.csv")
     with open(csv_path, 'w', encoding='utf-8') as f:
         f.write("Rank,Image,Predictions\n")

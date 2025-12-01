@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
-HiVG模型可视化脚本
-基于数据集文件（.pth）进行批量可视化预测结果
+HiVG Visualization Script
+Batch visualization of prediction results based on dataset files (.pth)
 """
 import os
 import sys
@@ -11,7 +11,7 @@ import numpy as np
 from pathlib import Path
 from PIL import Image
 
-# 添加父目录到path以便导入模块
+# Add parent directory to path for module imports
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 # HiVG model imports
@@ -22,7 +22,7 @@ from utils.visual_utils import visualization
 import cv2
 from utils.box_utils import xywh2xyxy
 
-# 导入公共可视化工具
+# Import common visualization utilities
 from utils_visualization import process_image, save_pred_visualization, load_dataset, generate_prediction_statistics
 
 
@@ -106,7 +106,7 @@ def get_args_parser():
 
 
 def load_model(args):
-    """加载HiVG模型"""
+    """Load HiVG model"""
     print(f"Loading model from: {args.model_checkpoint}")
     
     checkpoint = torch.load(args.model_checkpoint, map_location='cpu')
@@ -126,18 +126,18 @@ def load_model(args):
         args = ckpt_args
         print("Using model configuration from checkpoint (with visualization overrides)")
     
-    # 根据模型类型调整hidden_dim
+    # Adjust hidden_dim based on model type
     if args.model == "ViT-L/14" or args.model == "ViT-L/14@336px":
         args.vl_hidden_dim = 768
     
-    # 构建模型
+    # Build model
     model = build_model(args)
     
-    # 加载checkpoint
+    # Load checkpoint
     missing_keys, unexpected_keys = model.load_state_dict(checkpoint['model'], strict=False)
     
     if missing_keys:
-        print(f"Missing keys: {missing_keys[:5]}...")  # 只打印前5个
+        print(f"Missing keys: {missing_keys[:5]}...")  # Print only first 5
     if unexpected_keys:
         print(f"Unexpected keys: {unexpected_keys[:5]}...")
     
@@ -151,30 +151,30 @@ def load_model(args):
 
 
 def visualize_dataset(args):
-    """可视化数据集，按图片分组处理"""
-    # 设置GPU
+    """Visualize dataset, process by image groups"""
+    # Set GPU
     os.environ["CUDA_VISIBLE_DEVICES"] = args.gpu_id
     device = torch.device(args.device)
     
-    # 加载模型
+    # Load model
     model, args = load_model(args)
     
-    # 加载数据集
+    # Load dataset
     dataset = load_dataset(args.label_file)
     
-    # 确定要可视化的样本范围
+    # Determine sample range to visualize
     end_idx = args.start_idx + args.num_samples if args.num_samples > 0 else len(dataset)
     end_idx = min(end_idx, len(dataset))
     samples_to_process = dataset[args.start_idx:end_idx]
     
     print(f"Visualizing samples {args.start_idx} to {end_idx-1} (total: {len(samples_to_process)})")
     
-    # 按图片文件名分组
+    # Group by image filename
     image_groups = {}
     for idx, item in enumerate(samples_to_process):
         sample_idx = args.start_idx + idx
         
-        # 解析数据格式
+        # Parse data format
         if str(args.dataset).startswith('rgbtvg'):
             img_filename = item[0]
             img_size = item[1]
@@ -187,7 +187,7 @@ def visualize_dataset(args):
             bbox_gt = item[2]
             text = item[3].lower()
         
-        # 按图片文件名分组
+        # Group by image filename
         if img_filename not in image_groups:
             image_groups[img_filename] = []
         
@@ -200,24 +200,24 @@ def visualize_dataset(args):
     
     print(f"Found {len(image_groups)} unique images with annotations")
     
-    # 创建输出目录
+    # Create output directory
     Path(args.output_dir).mkdir(parents=True, exist_ok=True)
     
-    # 构建变换
+    # Build transforms
     transform = make_transforms(args, 'val')
     
-    # 处理每个图片组
+    # Process each image group
     success_count = 0
     fail_count = 0
     processed_images = 0
-    prediction_stats = []  # 用于统计每个图片的预测数量
+    prediction_stats = []  # For statistics of predictions per image
     
     for img_filename, group_items in image_groups.items():
         processed_images += 1
         img_path = os.path.join(args.dataroot, img_filename)
         
         try:
-            # 使用第一个样本来处理图像（所有样本使用同一张图）
+            # Use first sample to process image (all samples use same image)
             first_item = group_items[0]
 
 
@@ -226,7 +226,7 @@ def visualize_dataset(args):
                 fail_count += len(group_items)
                 continue
             
-            # 根据模态解析返回值
+            # Parse return value based on modality
             if args.modality == 'rgbt':
                 if len(result) != 4:
                     fail_count += len(group_items)
@@ -243,22 +243,22 @@ def visualize_dataset(args):
                 fail_count += len(group_items)
                 continue
 
-            # 为每个查询进行预测
+            # Predict for each query
             predictions = []
             for item in group_items:
                 text = item['text']
                 
-                # 准备模型输入
+                # Prepare model input
                 img_tensor_batch = img_tensor.unsqueeze(0).to(device)
                 img_mask_batch = img_mask.unsqueeze(0).to(device)
                 img_nt = NestedTensor(img_tensor_batch, img_mask_batch)
                 texts = [text]
                 
-                # 模型推理
+                # Model inference
                 with torch.no_grad():
-                    # HiVG模型返回tuple: (pred_box, logits_per_text, logits_per_image, visu_token_similarity, seg_mask)
+                    # HiVG model returns tuple: (pred_box, logits_per_text, logits_per_image, visu_token_similarity, seg_mask)
                     outputs = model(img_nt, texts)
-                    pred_boxes = outputs[0]  # pred_box是第一个元素
+                    pred_boxes = outputs[0]  # pred_box is first element
                 bbox = pred_boxes[0].cpu()
                 
                 predictions.append({
@@ -267,13 +267,13 @@ def visualize_dataset(args):
                     'sample_idx': item['sample_idx']
                 })
             
-            # 保存合并的预测可视化（单图，多框，编号+颜色区分）
+            # Save merged prediction visualization (single image, multiple boxes, numbered and color-coded)
             save_pred_visualization(
                 args, pil_img_original, pil_img_ir, predictions,
                 img_filename, args.output_dir, "hivg"
             )
             
-            # 记录统计信息
+            # Record statistics
             prediction_stats.append({
                 'image': img_filename,
                 'predictions': len(predictions)
@@ -287,7 +287,7 @@ def visualize_dataset(args):
             fail_count += len(group_items)
             continue
     
-    # 生成统计报告
+    # Generate statistics report
     generate_prediction_statistics(args.output_dir, prediction_stats, args.dataset, args.modality, "hivg")
     
     print(f"\nVisualization complete!")
