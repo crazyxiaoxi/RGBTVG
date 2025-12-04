@@ -12,7 +12,7 @@ test_UB test_SU test_RR test_HW test_RS test_ID test_PL test_IT test_TN test_BG 
 test_FY test_RY test_SY test_CY"}
 IMGSIZE=${IMGSIZE:-224}
 BATCHSIZE=${BATCHSIZE:-36}
-CUDADEVICES=${CUDADEVICES:-0,1}
+CUDADEVICES=${CUDADEVICES:-0}
 
 SCRIPT_DIR=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
 SINGLE_EVAL_SH="$SCRIPT_DIR/single_eval.sh"

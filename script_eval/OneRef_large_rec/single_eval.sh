@@ -6,7 +6,7 @@ DATA_SET=${DATASET:-rgbtvg_flir}
 IMGSIZE=${IMGSIZE:-224}
 BATCHSIZE=${BATCHSIZE:-1}
 MODALITY=${MODALITY:-rgb}
-CUDADEVICES=${CUDADEVICES:-3}
+CUDADEVICES=${CUDADEVICES:-0}
 
 EVAL_SETS=${EVAL_SETS:-"test \
  test_VWL test_WL test_NL test_SL \
@@ -17,7 +17,7 @@ EVAL_SETS=${EVAL_SETS:-"test \
 
 DATA_ROOT="../dataset_and_pretrain_model/datasets/VG/image_data"
 SPLIT_ROOT="../dataset_and_pretrain_model/datasets/VG/ref_data_shuffled"
-EVAL_MODEL_PATH=${EVAL_MODEL_PATH:-"../dataset_and_pretrain_model/result/OneRef_L/ONEREF_large_rec_${MODALITY}_$(echo $DATA_SET | sed 's/rgbtvg_//')_best.pth"}
+EVAL_MODEL_PATH=${EVAL_MODEL_PATH:-"../../CVPR_data/OneRef_L/ONEREF_large_rec_${MODALITY}_$(echo $DATA_SET | sed 's/rgbtvg_//')_best.pth"}
 OUTPUT_DIR=${OUTPUT_DIR:-"./eval_official/ONEREF_large_rec_${IMGSIZE}_${MODALITY}/$DATA_SET"}
 
 NPROC_PER_NODE=$(echo "$CUDADEVICES" | tr ',' '\n' | wc -l | awk '{print $1}')
