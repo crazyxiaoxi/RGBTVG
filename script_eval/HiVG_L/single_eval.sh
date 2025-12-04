@@ -47,7 +47,7 @@ evaluate() {
   echo -e "\n>>>> [HiVG_L] Eval set: $eval_set, model: $EVAL_MODEL_PATH"
   "${DIST_CMD[@]}" \
     --master_port 28886 \
-    hivg_eval.py \
+    train_val/hivg_eval.py \
     "${EVAL_ARGS[@]}" \
     --eval_model "$EVAL_MODEL_PATH" \
     --eval_set "$eval_set"

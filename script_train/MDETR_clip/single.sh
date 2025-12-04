@@ -19,7 +19,7 @@ OUTPUT_DIR="./output_training/MDETR_clip_$MODALITY/$DATA_SET"
 
 "${DIST_CMD[@]}" \
     --master_port 28500 \
-    mdetr_train.py \
+    train_val/mdetr_train.py \
     --model_type CLIP \
     --batch_size $BATCHSIZE \
     --imsize $IMGSIZE \
@@ -53,7 +53,7 @@ evaluate() {
     local eval_set=$1
     "${DIST_CMD[@]}" \
         --master_port 28600 \
-        mdetr_eval.py \
+        train_val/mdetr_eval.py \
         --model_type CLIP \
         --batch_size $BATCHSIZE \
         --imsize $IMGSIZE \

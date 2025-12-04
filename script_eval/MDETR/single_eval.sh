@@ -62,7 +62,7 @@ evaluate() {
   echo -e "\n>>>> Eval set: $eval_set, model: $EVAL_MODEL_PATH"
   "${DIST_CMD[@]}" \
     --master_port 26600 \
-    mdetr_eval.py \
+    train_val/mdetr_eval.py \
     "${EVAL_ARGS[@]}" \
     --eval_model "$EVAL_MODEL_PATH" \
     --eval_set "$eval_set"

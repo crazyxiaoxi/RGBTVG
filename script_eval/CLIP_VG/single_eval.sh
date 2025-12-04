@@ -44,7 +44,7 @@ evaluate() {
     echo -e "\n>>>> Eval set: $eval_set, model: $EVAL_MODEL_PATH"
     "${DIST_CMD[@]}" \
         --master_port 28881 \
-        eval_clip_vg.py \
+        train_val/eval_clip_vg.py \
         "${EVAL_ARGS[@]}" \
         --dataset "$DATA_SET" \
         --data_root "$DATA_ROOT" \

@@ -30,7 +30,7 @@ evaluate() {
     local model_path=$2
     "${DIST_CMD[@]}" \
         --master_port $((35000 + ROUND)) \
-        oneref_eval.py \
+        train_val/oneref_eval.py \
         --modality $MODALITY \
         --imsize $IMGSIZE \
         --num_workers 4 \
@@ -56,7 +56,7 @@ for ROUND in {1..2}; do
     # ---- Frozen backbone stage ----
     "${DIST_CMD[@]}" \
         --master_port $((33000 + ROUND)) \
-        oneref_train.py \
+        train_val/oneref_train.py \
         --modality $MODALITY \
         --imsize $IMGSIZE \
         --retrain $CHECKPOINT_PATH \
@@ -86,7 +86,7 @@ for ROUND in {1..2}; do
     # ---- Box mask constraints stage ----
     "${DIST_CMD[@]}" \
         --master_port $((34000 + ROUND)) \
-        oneref_train.py \
+        train_val/oneref_train.py \
         --modality $MODALITY \
         --imsize $IMGSIZE \
         --retrain $CHECKPOINT_PATH \

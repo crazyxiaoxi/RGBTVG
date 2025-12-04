@@ -44,7 +44,7 @@ evaluate() {
   echo -e "\n>>>> [OneRef_base_rec] Eval set: $eval_set, model: $model_path"
   "${DIST_CMD[@]}" \
     --master_port 25000 \
-    oneref_eval.py \
+    train_val/oneref_eval.py \
     "${EVAL_ARGS[@]}" \
     --finetune "$model_path" \
     --eval_set "$eval_set" \

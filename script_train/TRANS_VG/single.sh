@@ -22,7 +22,7 @@ mkdir -p $OUTPUT_DIR
 # ==================== TRAIN ====================
 "${DIST_CMD[@]}" \
     --master_port 28300 \
-    transvg_train.py \
+    train_val/transvg_train.py \
     --batch_size $BATCHSIZE \
     --imsize $IMGSIZE \
     --lr_bert 0.00001 \
@@ -46,7 +46,7 @@ evaluate() {
     local eval_set=$1
     "${DIST_CMD[@]}" \
         --master_port 28301 \
-        transvg_eval.py \
+        train_val/transvg_eval.py \
         --imsize $IMGSIZE \
         --batch_size $BATCHSIZE \
         --num_workers 4 \

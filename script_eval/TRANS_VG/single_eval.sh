@@ -43,7 +43,7 @@ evaluate() {
   echo -e "\n>>>> [TransVG] Eval set: $eval_set, model: $EVAL_MODEL_PATH"
   "${DIST_CMD[@]}" \
     --master_port 28301 \
-    transvg_eval.py \
+    train_val/transvg_eval.py \
     "${EVAL_ARGS[@]}" \
     --eval_set "$eval_set" \
     --eval_model "$EVAL_MODEL_PATH"

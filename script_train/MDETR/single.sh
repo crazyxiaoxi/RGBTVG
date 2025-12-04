@@ -18,7 +18,7 @@ OUTPUT_DIR="./output_training/MDETR_resnet_${IMGSIZE}_${MODALITY}/$DATA_SET"
 
 "${DIST_CMD[@]}" \
     --master_port 26500 \
-    mdetr_train.py \
+    train_val/mdetr_train.py \
     --model_type ResNet \
     --batch_size $BATCHSIZE \
     --epochs $EPOCHS \
@@ -53,7 +53,7 @@ evaluate() {
     local eval_set=$1
     "${DIST_CMD[@]}" \
         --master_port 26600 \
-        mdetr_eval.py \
+        train_val/mdetr_eval.py \
         --model_type ResNet \
         --batch_size $BATCHSIZE \
         --imsize $IMGSIZE \

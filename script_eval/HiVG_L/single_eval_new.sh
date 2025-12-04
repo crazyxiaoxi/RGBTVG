@@ -84,7 +84,7 @@ evaluate() {
   echo -e "\n>>>> [HiVG_L-debug] Eval set: $eval_set, model: $EVAL_MODEL_PATH"
   "${DIST_CMD[@]}" \
     --master_port 28886 \
-    hivg_eval.py \
+    train_val/hivg_eval.py \
     "${EVAL_ARGS[@]}" \
     --eval_model "$EVAL_MODEL_PATH" \
     --eval_set "$eval_set"
@@ -92,7 +92,7 @@ evaluate() {
 
 # 1) Train for one epoch
 echo -e "\n==================== [HiVG_L-debug] Train 1 epoch from OFFICIAL_MODEL ==========================="
-"${DIST_CMD[@]}" --master_port 28880 hivg_train.py "${TRAIN_ARGS[@]}"
+"${DIST_CMD[@]}" --master_port 28880 train_val/hivg_train.py "${TRAIN_ARGS[@]}"
 
 # 2) Then evaluate
 for es in $EVAL_SETS; do

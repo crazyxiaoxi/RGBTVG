@@ -27,7 +27,7 @@ evaluate() {
     local model_path=$2
     "${DIST_CMD[@]}" \
         --master_port $((25000 + ROUND)) \
-        oneref_eval.py \
+        train_val/oneref_eval.py \
         --modality $MODALITY \
         --imsize $IMGSIZE \
         --num_workers 4 \
