@@ -21,6 +21,8 @@ import utils.misc as utils
 from datasets import build_dataset
 from engine import evaluate
 
+import os
+
 """ DO NOT delete the below OneRef model import code ! """
 from timm.models import create_model
 import models.utils as beit3_utils
