@@ -24,6 +24,7 @@ def get_args_parser():
     parser = argparse.ArgumentParser('CLIP-VG Args', add_help=False)
     parser.add_argument('--modality', default='rgbt', type=str)
     parser.add_argument('--sup_type', default='un', type=str)
+    parser.add_argument('--old_dataloader', default=True, type=bool)
     parser.add_argument('--lr', default=1e-4, type=float)
     parser.add_argument('--lr_bert', default=1e-5, type=float)
     parser.add_argument('--lr_visu_cnn', default=1e-5, type=float)
@@ -140,8 +141,10 @@ def main(args):
     checkpoint = torch.load(args.eval_model, map_location='cpu')
     # import pdb
     # pdb.set_trace()
-    model_without_ddp.load_state_dict(checkpoint['model'])
-    print("Current model training epoch is: ", checkpoint['epoch'])
+    missing_keys, unexpected_keys = model_without_ddp.load_state_dict(checkpoint['model'],strict=False)
+    print('Missing keys when loading resume model: \n', missing_keys)
+    print('Unexpected additional keys in resume model: \n', unexpected_keys)
+    print("\nCurrent model training epoch is: ", checkpoint['epoch'])
 
     # output log
     eval_model = args.eval_model

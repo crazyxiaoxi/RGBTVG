@@ -21,8 +21,6 @@ def get_args_parser():
     parser = argparse.ArgumentParser('MMVG Evaluate args', add_help=False)
     parser.add_argument('--eval_out_dir', default='./output_evluation', type=str)
     parser.add_argument('--modality', default='rgbt', type=str)
-    parser.add_argument('--open_lora', default=False, type=str)
-    parser.add_argument('--open_text_guided_fusion', default=False, type=str)
     parser.add_argument('--sup_type', default='full', type=str)
     parser.add_argument('--lr', default=1e-4, type=float)  # 融合模块学习率
     parser.add_argument('--lr_visu_tra', default=1e-5, type=float)
@@ -155,8 +153,7 @@ def main(args):
 
     data_loader_test = DataLoader(dataset_test, args.batch_size, sampler=sampler_test,
                                   drop_last=False, collate_fn=utils.collate_fn, num_workers=args.num_workers,shuffle=False)
-# clip.base_model.model.vision_model.encoder.layers.1.self_attn.v_proj.lora_A.lora_ir.weight
-# clip.base_model.model.vision_model.encoder.layers.1.self_attn.v_proj.lora_A.default.weight
+
     checkpoint = torch.load(args.eval_model, map_location='cpu')
     def checkpoint_pre_process(state_dict):
         new_state_dict = {}
@@ -170,7 +167,6 @@ def main(args):
             else:
                 new_state_dict[key] = value
         return new_state_dict
-
     checkpoint['model'] = checkpoint_pre_process(checkpoint['model'])
     missing_keys, unexpected_keys = model_without_ddp.load_state_dict(checkpoint['model'], strict=False)
     print('Missing keys when loading stage model: \n', missing_keys)

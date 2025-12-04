@@ -22,6 +22,7 @@ def get_args_parser():
     parser = argparse.ArgumentParser('CLIP-VG Args', add_help=False)
     parser.add_argument('--modality', default='rgbt', type=str)
     parser.add_argument('--sup_type', default='un', type=str)
+    parser.add_argument('--old_dataloader', default=True, type=bool)
     parser.add_argument('--lr', default=1e-4, type=float)
     parser.add_argument('--lr_bert', default=1e-5, type=float)
     parser.add_argument('--lr_visu_cnn', default=1e-5, type=float)

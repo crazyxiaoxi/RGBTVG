@@ -50,7 +50,6 @@ dependencies:
       - datasets==2.0.0
       - dill==0.4.0
       - einops==0.8.1
-      - en-core-web-md==3.4.1
       - fairscale==0.4.0
       - filelock==3.13.1
       - fonttools==4.59.0
@@ -123,7 +122,6 @@ dependencies:
       - pynvml==11.4.1
       - pyparsing==3.2.3
       - python-dateutil==2.9.0.post0
-      - python-graphviz==0.21
       - pytorch-pretrained-bert==0.6.2
       - pytz==2025.2
       - pyyaml==6.0.2
