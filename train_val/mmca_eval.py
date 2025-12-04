@@ -8,6 +8,12 @@ import math
 import numpy as np
 from pathlib import Path
 
+import os
+import sys
+PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+if PROJECT_ROOT not in sys.path:
+    sys.path.insert(0, PROJECT_ROOT)
+
 import torch
 import torch.backends.cudnn as cudnn
 from torch.utils.data import DataLoader, DistributedSampler

@@ -47,7 +47,7 @@ evaluate() {
   echo -e "\n>>>> [MMVG] Eval set: $eval_set, model: $EVAL_MODEL_PATH"
   "${DIST_CMD[@]}" \
     --master_port 28773 \
-    mmvg_eval.py \
+    train_val/mmvg_eval.py \
     "${EVAL_ARGS[@]}" \
     --eval_model "$EVAL_MODEL_PATH" \
     --eval_set "$eval_set"

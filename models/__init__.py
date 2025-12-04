@@ -19,7 +19,7 @@ def build_model(args):
         print('Building HiVG model...')
         return HiVG(args)
     elif args.model_name=='CLIP_VG':
-        if args.eval_model:
+        if hasattr(args, 'eval_model') and args.eval_model:
             print('Building ML_CLIP_VG model...')
             return ML_CLIP_VG(args)
         else: 

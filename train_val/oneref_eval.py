@@ -8,6 +8,11 @@ import datetime
 import numpy as np
 from pathlib import Path
 
+import sys
+PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+if PROJECT_ROOT not in sys.path:
+    sys.path.insert(0, PROJECT_ROOT)
+
 import torch
 import torch.backends.cudnn as cudnn
 from torch.utils.data import DataLoader, DistributedSampler
@@ -15,8 +20,6 @@ from torch.utils.data import DataLoader, DistributedSampler
 import utils.misc as utils
 from datasets import build_dataset
 from engine import evaluate
-
-import os
 
 """ DO NOT delete the below OneRef model import code ! """
 from timm.models import create_model
