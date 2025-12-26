@@ -1,53 +1,48 @@
-```markdown
-# RGBT Visual Grounding Benchmark
 
-## Introduction
 
-Visual Grounding (VG) aims to localize specific objects in an image according to natural language expressions and serves as a fundamental task for vision–language understanding. Existing VG benchmarks are mainly derived from datasets collected under clean and controlled environments (e.g., COCO), where scene diversity is limited and objects are visually salient. As a result, these benchmarks fail to adequately reflect the complexity of real-world scenarios, such as illumination changes, adverse weather conditions, long-distance observation, and small or low-contrast objects. This limitation restricts the evaluation of model robustness and generalization, especially for safety-critical applications.
+<h1>RGBT-Ground: Robust Visual Grounding in Complex Real-World Scenarios</h1>
 
-To address these challenges, we introduce **RGBT-Ground**, the first large-scale visual grounding benchmark specifically designed for complex real-world environments. The dataset consists of spatially aligned RGB and Thermal Infrared (TIR) image pairs, along with high-quality natural language referring expressions, corresponding object bounding boxes, and fine-grained annotations at the scene, environment, and object levels. This benchmark enables comprehensive evaluation and facilitates research on robust visual grounding under all-day and all-weather conditions.
+<h2>Overview</h2>
+<p>
+Visual Grounding (VG) aims to localize specific objects in an image according to natural language expressions and serves as a fundamental task for vision–language understanding.
+However, existing VG benchmarks are mostly derived from datasets collected under clean and controlled environments (e.g., COCO), where scene diversity is limited.
+Consequently, they fail to reflect the complexity of real-world conditions such as illumination changes, adverse weather, long-distance observation, and small objects, which are critical for evaluating robustness and generalization in safety-critical applications.
+</p>
 
----
+<p>
+To address these limitations, we present <strong>RGBT-Ground</strong>, the first large-scale visual grounding benchmark designed for complex real-world scenarios.
+The benchmark consists of spatially aligned RGB and Thermal Infrared (TIR) image pairs with high-quality referring expressions, corresponding object bounding boxes,
+and fine-grained annotations at the scene, environment, and object levels.
+It enables comprehensive evaluation and facilitates research on robust visual grounding under diverse and challenging conditions.
+</p>
 
-## RGBT-Ground Dataset
+<h2>RGBT-Ground Dataset</h2>
+<p>
+RGBT-Ground is constructed to support both uni-modal and multi-modal visual grounding research in real-world environments.
+The dataset provides spatially aligned RGB–TIR image pairs, high-quality natural language referring expressions,
+precise object bounding box annotations, and fine-grained annotations at scene, environment, and object levels.
+It covers diverse conditions including illumination changes, weather variations, and long-distance scenarios,
+making it suitable for systematic robustness evaluation beyond clean benchmark settings.
+</p>
 
-RGBT-Ground is constructed to support both uni-modal and multi-modal visual grounding research in challenging real-world scenarios. The dataset provides:
+<h2>Unified Visual Grounding Framework</h2>
+<p>
+To support multi-sensor visual grounding research, we establish a unified visual grounding framework that supports
+uni-modal inputs (RGB-only or TIR-only) as well as multi-modal inputs (RGB–TIR).
+The framework enables existing single-modal visual grounding methods to be adapted to multi-modal settings
+and provides consistent training and evaluation protocols for fair comparison across different modalities.
+</p>
 
-- Spatially aligned RGB–TIR image pairs  
-- High-quality referring expressions for each target object  
-- Precise bounding box annotations  
-- Fine-grained annotations at scene, environment, and object levels  
-- Coverage of diverse conditions, including varying illumination, weather, and viewing distances  
+<h2>RGBT-VGNet Baseline</h2>
+<p>
+Based on the unified framework, we propose <strong>RGBT-VGNet</strong>, a simple yet effective baseline for multi-modal visual grounding.
+RGBT-VGNet fuses complementary information from RGB and TIR modalities to achieve robust grounding performance in challenging environments.
+Experimental results on RGBT-Ground show that RGBT-VGNet significantly outperforms adapted single-modal and multi-modal baselines,
+particularly in nighttime and long-distance scenarios.
+</p>
 
-These properties make RGBT-Ground suitable for evaluating robustness and generalization of visual grounding models beyond clean benchmark settings.
-
----
-
-## Unified Visual Grounding Framework
-
-To enable fair and flexible evaluation, we establish a unified visual grounding framework that supports:
-
-- Uni-modal visual inputs (RGB-only or TIR-only)  
-- Multi-modal visual inputs (RGB–TIR)  
-- Adaptation of existing visual grounding methods to multi-modal settings  
-- Consistent training, evaluation, and comparison across different modalities  
-
-This framework allows existing VG models, originally designed for single-sensor inputs, to be extended and evaluated under multi-modal conditions.
-
----
-
-## RGBT-VGNet Baseline
-
-Based on the unified framework, we propose **RGBT-VGNet**, a simple yet effective baseline model for multi-modal visual grounding. RGBT-VGNet focuses on fusing complementary information from RGB and TIR modalities to achieve robust grounding performance in challenging environments.
-
-Experimental results on RGBT-Ground demonstrate that RGBT-VGNet significantly outperforms adapted single-modal and multi-modal baselines, particularly in nighttime and long-distance scenarios, highlighting the advantages of multi-sensor fusion for robust visual grounding.
-
----
-
-## Repository Structure
-
-```
-
+<h2>Repository Structure</h2>
+<pre>
 RGBTVG/
 ├── data_pre/                # Data preprocessing scripts
 ├── datasets/                # Dataset definitions and loaders
@@ -56,22 +51,22 @@ RGBTVG/
 ├── script_eval/             # Evaluation scripts
 ├── script_visualize/        # Visualization tools
 ├── train_val/               # Training and validation utilities
-├── utils/                   # Helper functions and common utilities
-├── requirements.txt         # Dependency list
-└── README.md                # Project documentation
+├── utils/                   # Helper functions
+├── requirements.txt         # Dependencies
+└── README.md                # Documentation
+</pre>
 
-```
+<h2>Usage</h2>
+<p>
+Please refer to the scripts in each directory for training, evaluation, and visualization.
+Configuration files should be modified to specify dataset paths, modality settings, and experimental options.
+</p>
 
----
+<h2>License</h2>
+<p>
+All related resources, including the dataset, code, and baseline models, will be publicly released
+to promote future research on robust visual grounding in complex real-world environments.
+</p>
 
-## Usage
-
-Please refer to the scripts in the corresponding directories for training, evaluation, and visualization. Configuration files should be adjusted to specify dataset paths, modality settings, and experimental options.
-
----
-
-## License and Availability
-
-All related resources, including the dataset, code, and baseline models, will be publicly released to facilitate future research on robust visual grounding in complex real-world environments.
-
-```
+</body>
+</html>
