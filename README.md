@@ -65,9 +65,21 @@ particularly in nighttime and long-distance scenarios.
 cd RGBTVG</code></pre>
     </li>
     <li>Create and activate the conda environment:
-        <pre><code>conda env create -f environment_full.yml
-conda activate rgbtvg  # Replace with your desired environment name if needed</code></pre>
-        <p><strong>Note</strong>: The <code>environment_full.yml</code> file includes all required dependencies, but may cause conflicts.Install according to the actual situation of the local environment. </p>
+        <p>We provide two ways to set up the environment for better compatibility:</p>
+        <ul>
+            <li><strong>Recommended (Conda)</strong>:
+                <pre><code>conda env create -f environment_full.yml
+conda activate rgbtvg</code></pre>
+                <p><strong>Note</strong>: The <code>environment_full.yml</code> specifies exact versions for reproducibility. If you encounter dependency conflicts due to your local setup, please try the pip method below.</p>
+            </li>
+            <li><strong>Alternative (Pip)</strong>:
+                <pre><code>conda create -n rgbtvg python=3.9  # Or your preferred Python version
+conda activate rgbtvg
+pip install -r requirements.txt</code></pre>
+                <p><strong>Note</strong>: <code>requirements.txt</code> lists more flexible version ranges. If conflicts still occur, you can manually adjust versions by installing specific ones listed in the file (e.g., <code>pip install numpy==1.21.2 </code>, numpy needs to be < 2.0).</p>
+            </li>
+        </ul>
+        <p>Choose the method that best fits your local environment.</p>
     </li>
 </ol>
 
