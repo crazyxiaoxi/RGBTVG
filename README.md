@@ -1,4 +1,10 @@
-
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>RGBT-Ground: Robust Visual Grounding in Complex Real-World Scenarios</title>
+</head>
+<body>
 
 <h1>RGBT-Ground: Robust Visual Grounding in Complex Real-World Scenarios</h1>
 
@@ -8,7 +14,6 @@ Visual Grounding (VG) aims to localize specific objects in an image according to
 However, existing VG benchmarks are mostly derived from datasets collected under clean and controlled environments (e.g., COCO), where scene diversity is limited.
 Consequently, they fail to reflect the complexity of real-world conditions such as illumination changes, adverse weather, long-distance observation, and small objects, which are critical for evaluating robustness and generalization in safety-critical applications.
 </p>
-
 <p>
 To address these limitations, we present <strong>RGBT-Ground</strong>, the first large-scale visual grounding benchmark designed for complex real-world scenarios.
 The benchmark consists of spatially aligned RGB and Thermal Infrared (TIR) image pairs with high-quality referring expressions, corresponding object bounding boxes,
@@ -41,31 +46,68 @@ Experimental results on RGBT-Ground show that RGBT-VGNet significantly outperfor
 particularly in nighttime and long-distance scenarios.
 </p>
 
+<h2>Downloads</h2>
+<ul>
+    <li><strong>Dataset</strong>: Download the RGBT-Ground dataset from Hugging Face:<br>
+        <a href="https://huggingface.co/datasets/JiawenXi/RGBT-Ground-Dataset">https://huggingface.co/datasets/JiawenXi/RGBT-Ground-Dataset</a>
+    </li>
+    <li><strong>Pre-trained Models</strong>: Download the baseline models (RGBT-VGNet) from Hugging Face:<br>
+        <a href="https://huggingface.co/JiawenXi/RGBT-Ground-Model">https://huggingface.co/JiawenXi/RGBT-Ground-Model</a>
+    </li>
+</ul>
+
+<h2>Installation and Usage</h2>
+
+<h3>Environment Setup</h3>
+<ol>
+    <li>Clone the repository:
+        <pre><code>git clone https://github.com/crazyxiaoxi/RGBTVG.git
+cd RGBTVG</code></pre>
+    </li>
+    <li>Create and activate the conda environment:
+        <pre><code>conda env create -f environment_full.yml
+conda activate rgbtvg  # Replace with your desired environment name if needed</code></pre>
+        <p><strong>Note</strong>: The <code>environment_full.yml</code> file includes all required dependencies, but may cause conflicts.Install according to the actual situation of the local environment. </p>
+    </li>
+</ol>
+
+<h3>Dataset Preparation</h3>
+<p>Download the dataset using the links above and place it in the appropriate directory (e.g., specify the path in the configuration files under <code>../dataset_and_pretrain_model/datasets/VG</code> or as required by the scripts).</p>
+
+<h3>Training</h3>
+<p>Run the training scripts for the desired model:</p>
+<pre><code>bash script_train/&lt;model_name&gt;/all.sh</code></pre>
+<p>Modify the corresponding configuration files (e.g., for dataset paths, modality settings, hyperparameters) before running.</p>
+
+<h3>Evaluation / Inference</h3>
+<p>Run evaluation on trained models:</p>
+<pre><code>bash script_eval/run_all_evals.sh</code></pre>
+<p>This script will perform inference and compute metrics across different settings.</p>
+
+<h3>Visualization</h3>
+<p>Visualize grounding results:</p>
+<pre><code>bash script_visualize/all/run_all_&lt;name&gt;_tests.sh</code></pre>
+<p>Replace <code>&lt;name&gt;</code> with the specific test split or configuration as needed.</p>
+
 <h2>Repository Structure</h2>
 <pre>
 RGBTVG/
-├── data_pre/                # Data preprocessing scripts
-├── datasets/                # Dataset definitions and loaders
-├── models/                  # Model architectures
-├── script_train/            # Training scripts
-├── script_eval/             # Evaluation scripts
-├── script_visualize/        # Visualization tools
-├── train_val/               # Training and validation utilities
-├── utils/                   # Helper functions
-├── requirements.txt         # Dependencies
-└── README.md                # Documentation
+├── data_pre/              # Data preprocessing scripts
+├── datasets/              # Dataset definitions and loaders
+├── models/                # Model architectures
+├── script_train/          # Training scripts
+├── script_eval/           # Evaluation scripts
+├── script_visualize/      # Visualization tools
+├── train_val/             # Training and validation utilities
+├── utils/                 # Helper functions
+├── environment_full.yml   # Full conda environment specification
+├── requirements.txt       # Dependencies (alternative to yml)
+└── README.md              # Documentation
 </pre>
-
-<h2>Usage</h2>
-<p>
-Please refer to the scripts in each directory for training, evaluation, and visualization.
-Configuration files should be modified to specify dataset paths, modality settings, and experimental options.
-</p>
 
 <h2>License</h2>
 <p>
-All related resources, including the dataset, code, and baseline models, will be publicly released
-to promote future research on robust visual grounding in complex real-world environments.
+All related resources, including the dataset, code, and baseline models, are publicly released to promote future research on robust visual grounding in complex real-world environments.
 </p>
 
 </body>
