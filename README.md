@@ -1,10 +1,10 @@
-<!DOCTYPE html>
+<!-- <!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
     <title>RGBT-Ground: Robust Visual Grounding in Complex Real-World Scenarios</title>
 </head>
-<body>
+<body> -->
 
 <h1>RGBT-Ground: Robust Visual Grounding in Complex Real-World Scenarios</h1>
 
