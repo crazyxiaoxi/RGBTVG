@@ -8,16 +8,16 @@ BATCHSIZE=${BATCHSIZE:-1}
 MODALITY=${MODALITY:-rgb}
 CUDADEVICES=${CUDADEVICES:-0}
 
-EVAL_SETS=${EVAL_SETS:-"test \
+EVAL_SETS=${EVAL_SETS:-"test testA testB testC val \
  test_VWL test_WL test_NL test_SL \
  test_NS test_SS \
  test_PO test_HO \
  test_UB test_SU test_RR test_HW test_RS test_ID test_PL test_IT test_TN test_BG test_CP test_MK test_WF \
- test_FY test_RY test_SY test_CY"}
+ test_FY test_RY test_SY test_CY testA testB testC val"}
 
 DATA_ROOT="../dataset_and_pretrain_model/datasets/VG/image_data"
 SPLIT_ROOT="../dataset_and_pretrain_model/datasets/VG/ref_data_shuffled"
-EVAL_MODEL_PATH=${EVAL_MODEL_PATH:-"../../CVPR_data/OneRef_L/ONEREF_large_rec_${MODALITY}_$(echo $DATA_SET | sed 's/rgbtvg_//')_best.pth"}
+EVAL_MODEL_PATH=${EVAL_MODEL_PATH:-"../dataset_and_pretrain_model/result/OneRef_L/ONEREF_large_rec_${MODALITY}_$(echo $DATA_SET | sed 's/rgbtvg_//')_best.pth"}
 OUTPUT_DIR=${OUTPUT_DIR:-"./eval_official/ONEREF_large_rec_${IMGSIZE}_${MODALITY}/$DATA_SET"}
 
 NPROC_PER_NODE=$(echo "$CUDADEVICES" | tr ',' '\n' | wc -l | awk '{print $1}')

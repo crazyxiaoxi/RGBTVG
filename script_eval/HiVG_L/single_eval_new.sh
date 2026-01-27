@@ -50,12 +50,12 @@ TRAIN_ARGS=( \
   --model ViT-L/14 \
 )
 
-EVAL_SETS=${EVAL_SETS:-"test \
+EVAL_SETS=${EVAL_SETS:-"test testA testB testC val \
  test_VWL test_WL test_NL test_SL \
  test_NS test_SS \
  test_PO test_HO \
  test_UB test_SU test_RR test_HW test_RS test_ID test_PL test_IT test_TN test_BG test_CP test_MK test_WF \
- test_FY test_RY test_SY test_CY"}
+ test_FY test_RY test_SY test_CY testA testB testC val"}
 
 # Evaluation arguments reused from the original single_eval script
 EVAL_MODEL_PATH="$OUTPUT_DIR_DEBUG/best_checkpoint.pth"

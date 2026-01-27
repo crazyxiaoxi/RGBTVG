@@ -9,12 +9,12 @@ BATCHSIZE=${BATCHSIZE:-4}
 MODALITY=${MODALITY:-rgbt}
 CUDADEVICES=${CUDADEVICES:-3}
 
-EVAL_SETS=${EVAL_SETS:-"test \
+EVAL_SETS=${EVAL_SETS:-"test testA testB testC val \
  test_VWL test_WL test_NL test_SL \
  test_NS test_SS \
  test_PO test_HO \
  test_UB test_SU test_RR test_HW test_RS test_ID test_PL test_IT test_TN test_BG test_CP test_MK test_WF \
- test_FY test_RY test_SY test_CY"}
+ test_FY test_RY test_SY test_CY testA testB testC val"}
 
 NPROC_PER_NODE=$(echo "$CUDADEVICES" | tr ',' '\n' | wc -l | awk '{print $1}')
 DIST_CMD=(env CUDA_VISIBLE_DEVICES=$CUDADEVICES TORCH_USE_CUDA_DSA=1 python -m torch.distributed.launch --nproc_per_node=$NPROC_PER_NODE --use_env)
