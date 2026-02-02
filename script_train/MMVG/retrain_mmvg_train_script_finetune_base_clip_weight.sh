@@ -2,7 +2,7 @@ export IMGSIZE=224
 export BATCHSIZE=32
 export MODALITY='rgbt'
 #export CUDADEVICES=0
-export CUDADEVICES=0,1,2,3,4,5,6,7
+export CUDADEVICES=0,1,2,3
 export MODEL_NAME=MMVG #MMVG,MMVG_te
 
 # export RETRAIN="../dataset_and_pretrain_model/pretrain_model/pretrained_weights/HiVG/mixup_pretraining_base/mixup/fixed_best_checkpoint_2.pth" #modified pos embedding

@@ -34,7 +34,7 @@ EVAL_ARGS=( \
   --normalize_before \
   --mixup_pretrain \
   --use_mask_loss \
-  # --hi_lora_stage 3 \
+  --hi_lora_stage 3 \
   --data_root $DATA_ROOT \
   --split_root $SPLIT_ROOT \
   --output_dir $OUTPUT_DIR \
@@ -47,7 +47,7 @@ evaluate() {
   echo -e "\n>>>> [HiVG] Eval set: $eval_set, model: $EVAL_MODEL_PATH"
   "${DIST_CMD[@]}" \
     --master_port 28773 \
-    train_val/train_val/hivg_eval.py \
+    train_val/hivg_eval.py \
     "${EVAL_ARGS[@]}" \
     --eval_model "$EVAL_MODEL_PATH" \
     --eval_set "$eval_set"

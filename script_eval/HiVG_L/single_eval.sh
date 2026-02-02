@@ -35,7 +35,7 @@ EVAL_ARGS=( \
   --mixup_pretrain \
   --use_mask_loss \
   --save_hilora_clip \
-  # --hi_lora_stage 3 \
+  --hi_lora_stage 3 \
   --data_root $DATA_ROOT \
   --split_root $SPLIT_ROOT \
   --output_dir $OUTPUT_DIR \

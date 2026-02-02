@@ -19,12 +19,12 @@ def build_model(args):
         print('Building HiVG model...')
         return HiVG(args)
     elif args.model_name=='CLIP_VG':
-        if hasattr(args, 'eval_model') and args.eval_model:
-            print('Building ML_CLIP_VG model...')
-            return ML_CLIP_VG(args)
-        else: 
-            print('Building CLIP_VG model...')
-            return CLIP_VG(args)
+        # if hasattr(args, 'eval_model') and args.eval_model:
+        #     print('Building ML_CLIP_VG model...')
+        #     return ML_CLIP_VG(args)
+        # else: 
+        print('Building CLIP_VG model...')
+        return CLIP_VG(args)
     elif args.model_name=='TransVG':
         print('Building TransVG model...')
         return TransVG(args)

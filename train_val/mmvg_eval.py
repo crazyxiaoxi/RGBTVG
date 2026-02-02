@@ -31,6 +31,12 @@ def get_args_parser():
     parser.add_argument('--modality', default='rgbt', type=str)
     parser.add_argument('--open_lora', default=False, type=str)
     parser.add_argument('--open_text_guided_fusion', default=False, type=str)
+    # Language-Aware Visual Synergy 模式：lavs / iwm / cmx / avg
+    parser.add_argument('--lavs_mode', default='lavs', type=str,
+                        help="Language-Aware Visual Synergy mode: lavs | iwm | cmx | avg")
+    # HiLoRA / LoRA rank 消融（默认对应原实现：rgb=16, ir=48）
+    parser.add_argument('--lora_r_rgb', default=16, type=int, help='LoRA rank for RGB branch')
+    parser.add_argument('--lora_r_ir', default=48, type=int, help='LoRA rank for IR branch')
     parser.add_argument('--sup_type', default='full', type=str)
     parser.add_argument('--lr', default=1e-4, type=float)  # 融合模块学习率
     parser.add_argument('--lr_visu_tra', default=1e-5, type=float)

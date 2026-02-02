@@ -6,7 +6,7 @@ DATA_SET=${DATASET:-rgbtvg_flir}
 echo -e "\n\n\n\n\n\n\n==================== clipvg single eval dataset: $DATA_SET ==========================="
 IMGSIZE=${IMGSIZE:-224}
 BATCHSIZE=${BATCHSIZE:-32}
-MODALITY=${MODALITY:-rgb}            # rgb / ir / rgbt
+MODALITY=${MODALITY:-rgbt}            # rgb / ir / rgbt
 CUDADEVICES=${CUDADEVICES:-0}
 
 # Default evaluation split list:
@@ -32,7 +32,7 @@ DIST_CMD=(env CUDA_VISIBLE_DEVICES=$CUDADEVICES python -m torch.distributed.laun
 # 路径配置
 DATA_ROOT="../dataset_and_pretrain_model/datasets/VG/image_data"
 SPLIT_ROOT="../dataset_and_pretrain_model/datasets/VG/ref_data_shuffled"
-EVAL_MODEL_PATH=${EVAL_MODEL_PATH:-"../dataset_and_pretrain_model/pretrain_model/pretrained_weights/clipvg/best_checkpoint.pth"}
+EVAL_MODEL_PATH=${EVAL_MODEL_PATH:-"../dataset_and_pretrain_model/result/clip_vg/CLIP_VG_${IMGSIZE}_${MODALITY}_$(echo $DATA_SET | sed 's/rgbtvg_//')_best.pth"}
 OUTPUT_DIR=${OUTPUT_DIR:-"./eval_official/CLIP_VG_${IMGSIZE}_${MODALITY}/$DATA_SET"}
 
 # Evaluation arguments (kept consistent with EVAL_ARGS in the training script)

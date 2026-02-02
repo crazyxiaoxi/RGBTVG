@@ -521,6 +521,10 @@ class CLIPEncoderLayer_with_Crossmodal_Text_Guided_Fusion(nn.Module):
     def __init__(self, args, i, clip_encoder_layer, config: CLIPConfig, adapt_layer, extract_text_layer, text_config):
         super().__init__()
         self.args = args
+        # 是否启用 Language-Aware Visual Synergy（LAVS）
+        # lavs_mode: 'lavs' | 'iwm' | 'cmx'
+        self.lavs_mode = getattr(args, "lavs_mode", "lavs")
+        self.enable_text_guided_fusion = (self.lavs_mode == "lavs")
         self.embed_dim = clip_encoder_layer.embed_dim
         self.self_attn = clip_encoder_layer.self_attn
 
@@ -579,8 +583,9 @@ class CLIPEncoderLayer_with_Crossmodal_Text_Guided_Fusion(nn.Module):
             output_attentions=output_attentions,
         )
         hidden_states = residual + hidden_states
-        """ Multi-layer Adaptive Cross-modal Text_Guided_Fusion """
-        if layer in adapt_layer:
+        """ Multi-layer Adaptive Cross-modal Text_Guided_Fusion (LAVS) """
+        # 只有在 lavs_mode == 'lavs' 时才启用文本引导的融合
+        if self.enable_text_guided_fusion and (layer in adapt_layer):
             text_guided_fusion = True
             if text_guided_fusion == True:
 
@@ -809,6 +814,9 @@ class MMVG(nn.Module):
     def __init__(self, args):
         super(MMVG, self).__init__()
         self.args = args
+        # LAVS 融合方式：'lavs'（默认原始 LAVS）、'iwm'、'cmx'
+        # 只在 rgbt 模态下起作用
+        self.lavs_mode = getattr(args, "lavs_mode", "lavs")
         print("init MMVG model...")
         if (args.model == "ViT-L/14-336"):
             print("init CLIP ViT-L/14-336")
@@ -865,14 +873,12 @@ class MMVG(nn.Module):
         self.clip.vision_model = CLIP_Vision_Model_with_Crossmodal_Text_Guided_Fusion(args, self.clip.vision_model,
                                                                           self.adapt_layer, self.extract_text_layer,
                                                                           self.clip.text_model.config)
+        # 语言感知视觉协同（LAVS）或替代模块（IWM/CMX/AVG）
+        # 注意：IWM/CMX 依赖 self.hidden_dim，因此初始化放在 self.hidden_dim 确定之后
         self.cross_fusion_layers_vt = nn.ModuleList()
         self.cross_fusion_layers_tv = nn.ModuleList()
-        if self.args.modality =="rgbt":
-            for _ in self.extract_vision_layer:
-                cross_attn_vt = CLIP_Cross_Attention(self.clip.vision_model.encoder.config)
-                cross_attn_tv = CLIP_Cross_Attention(self.clip.vision_model.encoder.config)
-                self.cross_fusion_layers_vt.append(cross_attn_vt)
-                self.cross_fusion_layers_tv.append(cross_attn_tv)
+        self.iwm = None
+        self.cmx = None
 
         """
             srameter in self.clip.parameters():
@@ -894,6 +900,22 @@ class MMVG(nn.Module):
         self.ml_text_feat_perceiver = nn.Linear(self.clip.text_embed_dim * len(self.extract_text_layer), clip_visu_hidden_dim)
         self.text_proj = nn.Linear(self.hidden_dim, self.hidden_dim)  # clip vision 768
         self.reg_token = nn.Embedding(1, self.hidden_dim)
+
+        # 在 hidden_dim 确定后，根据 lavs_mode 初始化融合模块
+        if self.args.modality == "rgbt":
+            if self.lavs_mode == "lavs":
+                for _ in self.extract_vision_layer:
+                    cross_attn_vt = CLIP_Cross_Attention(self.clip.vision_model.encoder.config)
+                    cross_attn_tv = CLIP_Cross_Attention(self.clip.vision_model.encoder.config)
+                    self.cross_fusion_layers_vt.append(cross_attn_vt)
+                    self.cross_fusion_layers_tv.append(cross_attn_tv)
+            elif self.lavs_mode == "iwm":
+                self.iwm = IWM(k=1, alpha=0.8)
+            elif self.lavs_mode == "cmx":
+                self.cmx = CMX(dim=self.hidden_dim)
+            elif self.lavs_mode == "avg":
+                # 简单 0.5 / 0.5 加权相加，不需要额外模块
+                pass
 
         # divisor = 16
         self.num_visu_token = int((args.imsize / self.patch_size) ** 2)
@@ -942,8 +964,14 @@ class MMVG(nn.Module):
                                                             "fc_in", "fc_out", "wte"]
             #peft_config = LoraConfig(target_modules=target_modules, inference_mode=False, r=32, lora_alpha=16,
             #                         lora_dropout=0.1, bias='none')
-            peft_config_rgb = LoraConfig(task_type = "FEATURE_EXTRACTION", target_modules=target_modules, inference_mode=False, r=16, lora_alpha=16,lora_dropout=0.1, bias='none')
-            peft_config_ir = LoraConfig(task_type = "FEATURE_EXTRACTION", target_modules=target_modules, inference_mode=False, r=48, lora_alpha=16,lora_dropout=0.1, bias='none')
+            # LoRA rank 可通过外部参数控制
+            lora_r_rgb = int(getattr(args, "lora_r_rgb", 16))
+            lora_r_ir = int(getattr(args, "lora_r_ir", 48))
+            print(f"LoRA ranks: rgb={lora_r_rgb}, ir={lora_r_ir}")
+            peft_config_rgb = LoraConfig(task_type="FEATURE_EXTRACTION", target_modules=target_modules, inference_mode=False,
+                                         r=lora_r_rgb, lora_alpha=16, lora_dropout=0.1, bias='none')
+            peft_config_ir = LoraConfig(task_type="FEATURE_EXTRACTION", target_modules=target_modules, inference_mode=False,
+                                        r=lora_r_ir, lora_alpha=16, lora_dropout=0.1, bias='none')
 
             # peft_config = AdaLoraConfig(target_modules=target_modules, inference_mode=False, r=8, lora_alpha=8,
             #                          lora_dropout=0, bias='none')
@@ -1142,17 +1170,18 @@ class MMVG(nn.Module):
 
             ml_image_features_ir = [clip_image_features_ir["hidden_states"][i] for i in self.extract_vision_layer]
             img_cls_embed_ir = self.clip.visual_projection(clip_image_features_ir["pooler_output"])  # torch.Size([64, 512])
-            for i in range(len(self.extract_vision_layer)):
 
-                ml_image_features_fusion_vt,_ = self.cross_fusion_layers_vt[i](ml_image_features[i], ml_image_features_ir[i],  attention_mask=None,causal_attention_mask=None,output_attentions=True)
-                ml_image_features_fusion_tv,_ = self.cross_fusion_layers_tv[i](ml_image_features_ir[i], ml_image_features[i],  attention_mask=None,causal_attention_mask=None,output_attentions=True)
-                ml_image_features[i] = ml_image_features[i]+ml_image_features_fusion_vt
-                ml_image_features_ir[i] =  ml_image_features_ir[i] +ml_image_features_fusion_tv
-            # for i,cross_fusion in enumerate(.cross_fusion_layers):
-            #     #TODO
+            # 只有在 LAVS 模式下才进行多层 Cross Attention 融合
+            if self.lavs_mode == "lavs":
+                for i in range(len(self.extract_vision_layer)):
+                    ml_image_features_fusion_vt,_ = self.cross_fusion_layers_vt[i](ml_image_features[i], ml_image_features_ir[i],  attention_mask=None,causal_attention_mask=None,output_attentions=True)
+                    ml_image_features_fusion_tv,_ = self.cross_fusion_layers_tv[i](ml_image_features_ir[i], ml_image_features[i],  attention_mask=None,causal_attention_mask=None,output_attentions=True)
+                    ml_image_features[i] = ml_image_features[i]+ml_image_features_fusion_vt
+                    ml_image_features_ir[i] =  ml_image_features_ir[i] +ml_image_features_fusion_tv
         ml_image_features = torch.cat(ml_image_features, dim=2)
         image_features = self.ml_visual_projection(ml_image_features)
         visu_src = self.visu_proj(image_features.float())  # (N*B)xC
+        
         if self.args.modality =='rgbt':
             ml_image_features_ir = torch.cat(ml_image_features_ir, dim=2)
             image_features_ir = self.ml_visual_projection(ml_image_features_ir)
@@ -1173,14 +1202,56 @@ class MMVG(nn.Module):
         cls_mask = torch.zeros((batch_size, 1)).to(reg_src.device).to(torch.bool)
         #TODO ZTY
         if self.args.modality == 'rgbt':
-            vl_src = torch.cat([reg_src, visu_src, visu_src_ir[1:,:,:], text_src], dim=0)
-            vl_mask = torch.cat([reg_mask, cls_mask, visu_mask,visu_mask, text_mask], dim=1)
+            if self.lavs_mode == "lavs":
+                # 原始：RGB / IR token 分别送入 VL Transformer
+                vl_src = torch.cat([reg_src, visu_src, visu_src_ir[1:,:,:], text_src], dim=0)
+                vl_mask = torch.cat([reg_mask, cls_mask, visu_mask, visu_mask, text_mask], dim=1)
+            else:
+                # 非 LAVS 模式：先将 RGB / IR visual token 融合为单一路径，再送入 VL Transformer
+                # visu_src, visu_src_ir: Len x B x C
+                if self.lavs_mode == "iwm" and self.iwm is not None:
+                    # IWM 根据 RGB 图像估计权重，进行加权融合
+                    w_vis = self.iwm(img_data.tensors[:,:3,:,:])  # B x 1
+                    w_vis = w_vis.to(visu_src.device).view(batch_size, 1, 1)  # B x 1 x 1
+                    rgb_feat = visu_src.permute(1, 0, 2)         # B x Len x C
+                    ir_feat = visu_src_ir.permute(1, 0, 2)       # B x Len x C
+                    fused_feat = w_vis * rgb_feat + (1.0 - w_vis) * ir_feat
+                    fused_visu_src = fused_feat.permute(1, 0, 2)  # Len x B x C
+                elif self.lavs_mode == "cmx" and self.cmx is not None:
+                    # CMX：基于 token 还原为 feature map，做融合后再展平
+                    rgb_feat = visu_src.permute(1, 0, 2)   # B x Len x C
+                    ir_feat = visu_src_ir.permute(1, 0, 2) # B x Len x C
+                    # 第一个 token 视为 cls，其余为 patch
+                    rgb_cls, rgb_patch = rgb_feat[:, 0:1, :], rgb_feat[:, 1:, :]
+                    ir_cls, ir_patch = ir_feat[:, 0:1, :], ir_feat[:, 1:, :]
+                    patch_num = int(math.sqrt(self.num_visu_token))
+                    assert patch_num * patch_num == self.num_visu_token
+                    # B x L x C -> B x C x H x W
+                    rgb_map = rgb_patch.permute(0, 2, 1).reshape(batch_size, self.hidden_dim, patch_num, patch_num)
+                    ir_map = ir_patch.permute(0, 2, 1).reshape(batch_size, self.hidden_dim, patch_num, patch_num)
+                    merged_map = self.cmx([rgb_map, ir_map])  # B x C x H x W
+                    merged_patch = merged_map.flatten(2).permute(0, 2, 1)  # B x L x C
+                    merged_cls = 0.5 * (rgb_cls + ir_cls)
+                    fused_feat = torch.cat([merged_cls, merged_patch], dim=1)  # B x (1+L) x C
+                    fused_visu_src = fused_feat.permute(1, 0, 2)  # Len x B x C
+                elif self.lavs_mode == "avg":
+                    # 简单 0.5 / 0.5 加权相加
+                    fused_visu_src = 0.5 * (visu_src + visu_src_ir)
+                else:
+                    # 兜底：简单平均
+                    fused_visu_src = 0.5 * (visu_src + visu_src_ir)
+
+                vl_src = torch.cat([reg_src, fused_visu_src, text_src], dim=0)
+                vl_mask = torch.cat([reg_mask, cls_mask, visu_mask, text_mask], dim=1)
         else:
             vl_src = torch.cat([reg_src, visu_src, text_src], dim=0)
             vl_mask = torch.cat([reg_mask, cls_mask, visu_mask, text_mask], dim=1)
 
-        
-        vl_pos = self.vl_pos_embed.weight.unsqueeze(1).repeat(1, batch_size, 1)
+        # 位置编码长度需要与 vl_src 的 token 数一致。
+        # 在 rgbt + 非 LAVS 模式下，我们只使用一条 visual 流（fused_visu_src），
+        # 此时 vl_src 的长度小于初始化时的 num_total，因此这里按实际长度截取。
+        vl_len = vl_src.size(0)
+        vl_pos = self.vl_pos_embed.weight[:vl_len].unsqueeze(1).repeat(1, batch_size, 1)
 
         vg_hs = self.vl_transformer(vl_src, vl_mask, vl_pos)  # (1+L+N)xBxC
         box_hs = vg_hs[0]
@@ -1237,3 +1308,247 @@ class MLP(nn.Module):
         for i, layer in enumerate(self.layers):
             x = F.relu(layer(x)) if i < self.num_layers - 1 else layer(x)
         return x
+
+###################### IWM ############################
+###################### IWM ############################
+###################### IWM ############################
+class IWM(nn.Module):
+    def __init__(self, k=1, alpha=0.8):
+        super(IWM, self).__init__()
+
+        # Convolutional layers with reduced dimensions
+        # 使用标准的 3x3 卷积，padding=1，stride=1，保持特征图尺寸不变
+        self.conv1 = nn.Conv2d(in_channels=3, out_channels=32, kernel_size=3, stride=1, padding=1)
+        self.conv2 = nn.Conv2d(in_channels=32, out_channels=64, kernel_size=3, stride=1, padding=1)
+
+        # MaxPool layers
+        self.maxpool = nn.MaxPool2d(kernel_size=2, stride=2)
+
+        # Reduced number of FC layers
+        self.fc1 = nn.Linear(64 * 16 * 16, 64)
+        self.fc2 = nn.Linear(64, k)
+
+        self.alpha = alpha
+        self.k = k
+
+    def forward(self, x):
+        # Downsample
+        x = F.interpolate(x, size=(64, 64), mode='bilinear', align_corners=False)
+
+        # Conv + MaxPool layers
+        x = self.maxpool(self.conv1(x))
+        x = self.maxpool(self.conv2(x))
+
+        # Flatten
+        x = x.view(x.size(0), -1)
+
+        # FC layers
+        x = F.relu(self.fc1(x))
+        illumination_level = self.fc2(x)
+
+        # Transform
+        weights = self.transform(illumination_level)
+        weights = weights.to(torch.float16)
+        return weights
+
+    def transform(self, x):
+        # x 的形状应该是 (batch_size, k)
+        batch_size = x.shape[0]
+
+        weights = torch.arange(0.5, 0.5 + 0.25 * self.k, 0.25, device=x.device)
+        x_prime = x * weights
+
+        p = F.softmax(x_prime, dim=1)
+
+        w_vis = torch.zeros(batch_size, 1, device=x.device)
+        if self.k == 1:
+            w_vis[:, 0] = p[:, 0]
+        else:
+            sum1 = torch.sum(p[:, self.k // 2:self.k], dim=1)
+            sum2 = torch.sum(p[:, :max(0, (self.k - 2) // 2)], dim=1)
+            w_vis[:, 0] = (sum1 - sum2) / 2 * self.alpha + 0.5
+
+        return w_vis
+
+
+###################### IWM ############################
+###################### IWM ############################
+###################### IWM ############################
+
+###################### CMX ############################
+###################### CMX ############################
+###################### CMX ############################
+class CMX(nn.Module):
+    def __init__(self, dim, reduction=1, num_heads=8, norm_layer=nn.BatchNorm2d, lambda_c=0.5, lambda_s=0.5):
+        super().__init__()
+        # 特征校正模块
+        self.frm = FeatureRectifyModule(dim, reduction, lambda_c, lambda_s)
+        # 特征融合模块
+        self.ffm = FeatureFusionModule(dim, reduction, num_heads, norm_layer)
+
+    def forward(self, x):
+        # 特征校正
+        x1 = x[0]
+        x2 = x[1]
+        x1, x2 = self.frm(x1, x2)
+        # 特征融合
+        merged = self.ffm(x1, x2)
+        return merged
+
+
+class FeatureRectifyModule(nn.Module):
+    def __init__(self, dim, reduction=1, lambda_c=.5, lambda_s=.5):
+        super(FeatureRectifyModule, self).__init__()
+        self.lambda_c = lambda_c
+        self.lambda_s = lambda_s
+        self.channel_weights = ChannelWeights(dim=dim, reduction=reduction)
+        self.spatial_weights = SpatialWeights(dim=dim, reduction=reduction)
+
+    def forward(self, x1, x2):
+        channel_weights = self.channel_weights(x1, x2)
+        spatial_weights = self.spatial_weights(x1, x2)
+        out_x1 = x1 + self.lambda_c * channel_weights[1] * x2 + self.lambda_s * spatial_weights[1] * x2
+        out_x2 = x2 + self.lambda_c * channel_weights[0] * x1 + self.lambda_s * spatial_weights[0] * x1
+        return out_x1, out_x2
+
+
+class FeatureFusionModule(nn.Module):
+    def __init__(self, dim, reduction=1, num_heads=None, norm_layer=nn.BatchNorm2d):
+        super().__init__()
+        self.cross = CrossPath(dim=dim, reduction=reduction, num_heads=num_heads)
+        self.channel_emb = ChannelEmbed(in_channels=dim * 2, out_channels=dim, reduction=reduction,
+                                        norm_layer=norm_layer)
+
+    def forward(self, x1, x2):
+        B, C, H, W = x1.shape
+        x1_flat = x1.flatten(2).transpose(1, 2)
+        x2_flat = x2.flatten(2).transpose(1, 2)
+        x1_cross, x2_cross = self.cross(x1_flat, x2_flat)
+        merge = torch.cat((x1_cross, x2_cross), dim=-1)
+        return self.channel_emb(merge, H, W)
+
+
+class ChannelWeights(nn.Module):
+    def __init__(self, dim, reduction=1):
+        super(ChannelWeights, self).__init__()
+        self.dim = dim
+        self.avg_pool = nn.AdaptiveAvgPool2d(1)
+        self.max_pool = nn.AdaptiveMaxPool2d(1)
+        self.mlp = nn.Sequential(
+            nn.Linear(self.dim * 4, self.dim * 4 // reduction),
+            nn.ReLU(inplace=True),
+            nn.Linear(self.dim * 4 // reduction, self.dim * 2),
+            nn.Sigmoid())
+
+    def forward(self, x1, x2):
+        B, _, H, W = x1.shape
+        x = torch.cat((x1, x2), dim=1)
+        avg = self.avg_pool(x).view(B, self.dim * 2)
+        max = self.max_pool(x).view(B, self.dim * 2)
+        y = torch.cat((avg, max), dim=1)  # B 4C
+        y = self.mlp(y).view(B, self.dim * 2, 1)
+        channel_weights = y.reshape(B, 2, self.dim, 1, 1).permute(1, 0, 2, 3, 4)  # 2 B C 1 1
+        return channel_weights
+
+
+class SpatialWeights(nn.Module):
+    def __init__(self, dim, reduction=1):
+        super(SpatialWeights, self).__init__()
+        self.dim = dim
+        self.mlp = nn.Sequential(
+            nn.Conv2d(self.dim * 2, self.dim // reduction, kernel_size=1),
+            nn.ReLU(inplace=True),
+            nn.Conv2d(self.dim // reduction, 2, kernel_size=1),
+            nn.Sigmoid())
+
+    def forward(self, x1, x2):
+        B, _, H, W = x1.shape
+        x = torch.cat((x1, x2), dim=1)  # B 2C H W
+        spatial_weights = self.mlp(x).reshape(B, 2, 1, H, W).permute(1, 0, 2, 3, 4)  # 2 B 1 H W
+        return spatial_weights
+
+    # Stage 1
+
+
+class CrossAttentionCMX(nn.Module):
+    def __init__(self, dim, num_heads=8, qkv_bias=False, qk_scale=None):
+        super(CrossAttentionCMX, self).__init__()
+        assert dim % num_heads == 0, f"dim {dim} should be divided by num_heads {num_heads}."
+
+        self.dim = dim
+        self.num_heads = num_heads
+        head_dim = dim // num_heads
+        self.scale = qk_scale or head_dim ** -0.5
+        self.kv1 = nn.Linear(dim, dim * 2, bias=qkv_bias)
+        self.kv2 = nn.Linear(dim, dim * 2, bias=qkv_bias)
+
+    def forward(self, x1, x2):
+        B, N, C = x1.shape
+        q1 = x1.reshape(B, -1, self.num_heads, C // self.num_heads).permute(0, 2, 1, 3).contiguous()
+        q2 = x2.reshape(B, -1, self.num_heads, C // self.num_heads).permute(0, 2, 1, 3).contiguous()
+        k1, v1 = self.kv1(x1).reshape(B, -1, 2, self.num_heads, C // self.num_heads).permute(2, 0, 3, 1, 4).contiguous()
+        k2, v2 = self.kv2(x2).reshape(B, -1, 2, self.num_heads, C // self.num_heads).permute(2, 0, 3, 1, 4).contiguous()
+
+        ctx1 = (k1.transpose(-2, -1) @ v1) * self.scale
+        ctx1 = ctx1.softmax(dim=-2)
+        ctx2 = (k2.transpose(-2, -1) @ v2) * self.scale
+        ctx2 = ctx2.softmax(dim=-2)
+
+        x1 = (q1 @ ctx2).permute(0, 2, 1, 3).reshape(B, N, C).contiguous()
+        x2 = (q2 @ ctx1).permute(0, 2, 1, 3).reshape(B, N, C).contiguous()
+
+        return x1, x2
+
+
+class CrossPath(nn.Module):
+    def __init__(self, dim, reduction=1, num_heads=8, norm_layer=nn.LayerNorm):
+        super().__init__()
+        self.channel_proj1 = nn.Linear(dim, dim // reduction * 2)
+        self.channel_proj2 = nn.Linear(dim, dim // reduction * 2)
+        self.act1 = nn.ReLU(inplace=True)
+        self.act2 = nn.ReLU(inplace=True)
+        self.cross_attn = CrossAttentionCMX(dim // reduction, num_heads=num_heads)
+        self.end_proj1 = nn.Linear(dim // reduction * 2, dim)
+        self.end_proj2 = nn.Linear(dim // reduction * 2, dim)
+        self.norm1 = norm_layer(dim)
+        self.norm2 = norm_layer(dim)
+
+    def forward(self, x1, x2):
+        y1, u1 = self.act1(self.channel_proj1(x1)).chunk(2, dim=-1)
+        y2, u2 = self.act2(self.channel_proj2(x2)).chunk(2, dim=-1)
+        v1, v2 = self.cross_attn(u1, u2)
+        y1 = torch.cat((y1, v1), dim=-1)
+        y2 = torch.cat((y2, v2), dim=-1)
+        out_x1 = self.norm1(x1 + self.end_proj1(y1))
+        out_x2 = self.norm2(x2 + self.end_proj2(y2))
+        return out_x1, out_x2
+
+
+# Stage 2
+class ChannelEmbed(nn.Module):
+    def __init__(self, in_channels, out_channels, reduction=1, norm_layer=nn.BatchNorm2d):
+        super(ChannelEmbed, self).__init__()
+        self.out_channels = out_channels
+        self.residual = nn.Conv2d(in_channels, out_channels, kernel_size=1, bias=False)
+        self.channel_embed = nn.Sequential(
+            nn.Conv2d(in_channels, out_channels // reduction, kernel_size=1, bias=True),
+            nn.Conv2d(out_channels // reduction, out_channels // reduction, kernel_size=3, stride=1, padding=1,
+                      bias=True, groups=out_channels // reduction),
+            nn.ReLU(inplace=True),
+            nn.Conv2d(out_channels // reduction, out_channels, kernel_size=1, bias=True),
+            norm_layer(out_channels)
+        )
+        self.norm = norm_layer(out_channels)
+
+    def forward(self, x, H, W):
+        B, N, _C = x.shape
+        x = x.permute(0, 2, 1).reshape(B, _C, H, W).contiguous()
+        residual = self.residual(x)
+        x = self.channel_embed(x)
+        out = self.norm(residual + x)
+        return out
+
+
+###################### CMX ############################
+###################### CMX ############################
+###################### CMX ############################
